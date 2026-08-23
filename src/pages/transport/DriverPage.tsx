@@ -101,6 +101,17 @@ export default function DriverPage() {
       .filter(a => a.direction === 'both' || a.direction === activeTrip.direction);
     setAssignments(rows);
 
+    // Stop coordinates only — used locally to decide when to ask the server for
+    // an "approaching" notification; guardian contact data is never fetched here.
+    const { data: stopRows } = await db.from('route_stops')
+      .select('id, lat, lng')
+      .eq('route_id', activeTrip.route_id)
+      .is('deleted_at', null);
+    stopsRef.current = Object.fromEntries(
+      ((stopRows || []) as { id: string; lat: number | null; lng: number | null }[])
+        .map(s => [s.id, { lat: s.lat, lng: s.lng }]),
+    );
+
     const { data: events } = await db.from('transport_events').select('student_id, event_type, occurred_at')
       .eq('trip_id', activeTrip.id).order('occurred_at', { ascending: true });
     const map: Record<string, TransportEventType> = {};
