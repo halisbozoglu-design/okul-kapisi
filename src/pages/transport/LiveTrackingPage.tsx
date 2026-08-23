@@ -239,7 +239,7 @@ export default function LiveTrackingPage() {
 
           <p className="text-[11px] leading-snug text-muted-foreground">
             Not: Rota sapması, durak koordinatlarından oluşturulan <strong>yaklaşık durak koridoruna</strong> göre
-            hesaplanır; gerçek yol geometrisi kullanılmaz. Planlanan sefer saati verisi bulunmadığı için gecikme
+            hesaplanır; gerçek yol geometrisi kullanılmaz. Gecikme
             uyarısı yalnızca durakların yön bazlı planlı saatleri girilmişse, GPS konumu ve
             yaklaşık ETA üzerinden <strong>tahmin</strong> olarak üretilir.
           </p>
@@ -262,6 +262,9 @@ export default function LiveTrackingPage() {
                     <p className="font-medium truncate">{routeName(t.route_id)}</p>
                     <Badge>{DIRECTION_LABELS[t.direction]}</Badge>
                   </div>
+                  {tripAlerts.filter(a => a.type === 'DELAYED').map((a, i) => (
+                    <p key={`d${i}`} className="text-xs font-medium text-orange-600">{a.detail}</p>
+                  ))}
                   {worst && (
                     <div className="flex flex-wrap items-center gap-1.5 pt-1">
                       <Badge className={SEVERITY_STYLE[worst]}>{SEVERITY_LABEL[worst]}</Badge>
