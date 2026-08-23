@@ -6,7 +6,7 @@ import 'leaflet/dist/leaflet.css';
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
-import { Bus, LogOut, MapPin, RefreshCw } from 'lucide-react';
+import { Bus, CalendarOff, LogOut, MapPin, RefreshCw, Timer, Undo2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,6 +14,15 @@ import { supabase } from '@/integrations/supabase/client';
 import { db } from '@/lib/db';
 import { useAuth } from '@/hooks/useAuth';
 import { deriveStudentStatus, groupEventsByStudent, DerivedStudentStatus } from '@/lib/transport/attendance';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { FormModal } from '@/components/common/FormModal';
+import { toast } from 'sonner';
+import { estimateEta, formatDistance } from '@/lib/transport/eta';
+import {
+  ABSENCE_DIRECTION_LABELS, TransportAbsence, findActiveAbsence, toDateKey,
+} from '@/lib/transport/absences';
 import { DIRECTION_LABELS, TransportDirection, TransportEventType, TripStatus } from '@/types/transport';
 
 L.Icon.Default.mergeOptions({
@@ -24,6 +33,7 @@ L.Icon.Default.mergeOptions({
 
 interface ChildRow {
   student_id: string;
+  institution_id: string;
   relation: string | null;
   first_name: string;
   last_name: string;
@@ -47,6 +57,7 @@ interface TripRow {
   vehicle_id: string | null;
   last_lat: number | null;
   last_lng: number | null;
+  last_speed: number | null;
   last_location_at: string | null;
 }
 
@@ -85,6 +96,12 @@ export default function ParentPage() {
   const [stops, setStops] = useState<StopRow[]>([]);
   const [trips, setTrips] = useState<TripRow[]>([]);
   const [events, setEvents] = useState<EventRow[]>([]);
+  const [absences, setAbsences] = useState<TransportAbsence[]>([]);
+  const [absenceForm, setAbsenceForm] = useState<{ child: ChildRow } | null>(null);
+  const [absenceDate, setAbsenceDate] = useState(toDateKey(new Date()));
+  const [absenceDirection, setAbsenceDirection] = useState<TransportDirection>('both');
+  const [absenceReason, setAbsenceReason] = useState('');
+  const [savingAbsence, setSavingAbsence] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -104,16 +121,17 @@ export default function ParentPage() {
 
     const { data: students } = await db
       .from('students')
-      .select('id, first_name, last_name, student_no')
+      .select('id, institution_id, first_name, last_name, student_no')
       .in('id', studentIds)
       .is('deleted_at', null);
 
     const relations = Object.fromEntries(
       ((links || []) as { student_id: string; relation: string | null }[]).map(l => [l.student_id, l.relation]),
     );
-    setChildren(((students || []) as { id: string; first_name: string; last_name: string; student_no: string | null }[])
+    setChildren(((students || []) as { id: string; institution_id: string; first_name: string; last_name: string; student_no: string | null }[])
       .map(s => ({
         student_id: s.id,
+        institution_id: s.institution_id,
         first_name: s.first_name,
         last_name: s.last_name,
         student_no: s.student_no,
@@ -141,7 +159,7 @@ export default function ParentPage() {
         : Promise.resolve({ data: [] }),
       routeIds.length
         ? db.from('transport_trips')
-            .select('id, route_id, direction, status, started_at, ended_at, vehicle_id, last_lat, last_lng, last_location_at')
+            .select('id, route_id, direction, status, started_at, ended_at, vehicle_id, last_lat, last_lng, last_speed, last_location_at')
             .in('route_id', routeIds)
             .order('started_at', { ascending: false })
         : Promise.resolve({ data: [] }),
@@ -156,6 +174,15 @@ export default function ParentPage() {
     setStops((stopRes.data || []) as StopRow[]);
     setTrips((tripRes.data || []) as TripRow[]);
     setEvents((eventRes.data || []) as EventRow[]);
+
+    const { data: absenceRows } = await db
+      .from('transport_absences')
+      .select('id, institution_id, student_id, absence_date, direction, reason, cancelled_at, deleted_at, created_at')
+      .in('student_id', studentIds)
+      .is('deleted_at', null)
+      .gte('absence_date', toDateKey(new Date()))
+      .order('absence_date', { ascending: true });
+    setAbsences((absenceRows || []) as TransportAbsence[]);
 
     const vehicleIds = [...new Set([
       ...routeRows.map(r => r.vehicle_id),
@@ -187,6 +214,10 @@ export default function ParentPage() {
     const channel = supabase
       .channel('parent-transport')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'transport_events' }, payload => {
+        const row = (payload.new ?? payload.old) as { student_id?: string | null } | null;
+        if (!row?.student_id || studentIds.has(row.student_id)) schedule();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transport_absences' }, payload => {
         const row = (payload.new ?? payload.old) as { student_id?: string | null } | null;
         if (!row?.student_id || studentIds.has(row.student_id)) schedule();
       })
