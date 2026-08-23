@@ -16,6 +16,7 @@ import {
   TransportStaff, Route as RouteType, TransportTrip, TransportDirection,
   DIRECTION_LABELS, Student, StudentAssignment, TransportEventType,
 } from '@/types/transport';
+import { TransportAbsence, findActiveAbsence, toDateKey } from '@/lib/transport/absences';
 
 const MIN_INTERVAL_MS = 8000;
 const MIN_DISTANCE_M = 20;
@@ -40,6 +41,7 @@ export default function DriverPage() {
   const [direction, setDirection] = useState<TransportDirection>('to_school');
   const [assignments, setAssignments] = useState<AssignmentRow[]>([]);
   const [statuses, setStatuses] = useState<Record<string, TransportEventType>>({});
+  const [absences, setAbsences] = useState<TransportAbsence[]>([]);
   const [sharing, setSharing] = useState(false);
   const [sample, setSample] = useState<LocationSample | null>(null);
   const [geoError, setGeoError] = useState<string | null>(null);
@@ -97,6 +99,20 @@ export default function DriverPage() {
       }
     });
     setStatuses(map);
+
+    // Students whose guardian reported they will not use the service today.
+    const studentIds = rows.map(r => r.student_id);
+    if (studentIds.length) {
+      const { data: absenceRows } = await db.from('transport_absences')
+        .select('id, institution_id, student_id, absence_date, direction, reason, cancelled_at, deleted_at, created_at')
+        .in('student_id', studentIds)
+        .eq('absence_date', toDateKey(new Date()))
+        .is('cancelled_at', null)
+        .is('deleted_at', null);
+      setAbsences((absenceRows || []) as TransportAbsence[]);
+    } else {
+      setAbsences([]);
+    }
   }, []);
 
   useEffect(() => { if (trip) loadStudents(trip); }, [trip?.id, loadStudents]); // eslint-disable-line
@@ -219,6 +235,7 @@ export default function DriverPage() {
     lastSentRef.current = null;
     setAssignments([]);
     setStatuses({});
+    setAbsences([]);
     toast.success('Sefer tamamlandı');
   };
 
@@ -377,22 +394,31 @@ export default function DriverPage() {
               {assignments.map(a => {
                 const s = a.students;
                 const st = statuses[a.student_id];
+                const absent = findActiveAbsence(absences, a.student_id, toDateKey(new Date()), trip.direction);
                 return (
-                  <div key={a.id} className="rounded-lg border p-3 space-y-2">
+                  <div key={a.id} className={`rounded-lg border p-3 space-y-2 ${absent ? 'opacity-60 bg-muted/50' : ''}`}>
                     <div className="flex items-center justify-between gap-2">
                       <p className="font-medium text-sm truncate">{s ? `${s.first_name} ${s.last_name}` : 'Öğrenci'}</p>
-                      {st && <Badge variant={st === 'NO_SHOW' ? 'destructive' : 'default'}>
-                        {st === 'BOARDING' ? 'Bindi' : st === 'NO_SHOW' ? 'Binmedi' : 'İndi'}
-                      </Badge>}
+                      {absent
+                        ? <Badge variant="outline" className="shrink-0">Kullanmayacak</Badge>
+                        : st && <Badge variant={st === 'NO_SHOW' ? 'destructive' : 'default'}>
+                            {st === 'BOARDING' ? 'Bindi' : st === 'NO_SHOW' ? 'Binmedi' : 'İndi'}
+                          </Badge>}
                     </div>
-                    <div className="grid grid-cols-3 gap-2">
-                      <Button size="sm" variant={st === 'BOARDING' ? 'default' : 'outline'} className="h-11"
-                        onClick={() => markStudent(a.student_id, 'BOARDING')}><Check className="h-4 w-4 mr-1" />Bindi</Button>
-                      <Button size="sm" variant={st === 'NO_SHOW' ? 'destructive' : 'outline'} className="h-11"
-                        onClick={() => markStudent(a.student_id, 'NO_SHOW')}><X className="h-4 w-4 mr-1" />Binmedi</Button>
-                      <Button size="sm" variant={st === 'DISEMBARK' ? 'secondary' : 'outline'} className="h-11"
-                        onClick={() => markStudent(a.student_id, 'DISEMBARK')}><ArrowDownToLine className="h-4 w-4 mr-1" />İndi</Button>
-                    </div>
+                    {absent ? (
+                      <p className="text-xs text-muted-foreground">
+                        Veli bugün servis kullanılmayacağını bildirdi{absent.reason ? ` · ${absent.reason}` : ''}.
+                      </p>
+                    ) : (
+                      <div className="grid grid-cols-3 gap-2">
+                        <Button size="sm" variant={st === 'BOARDING' ? 'default' : 'outline'} className="h-11"
+                          onClick={() => markStudent(a.student_id, 'BOARDING')}><Check className="h-4 w-4 mr-1" />Bindi</Button>
+                        <Button size="sm" variant={st === 'NO_SHOW' ? 'destructive' : 'outline'} className="h-11"
+                          onClick={() => markStudent(a.student_id, 'NO_SHOW')}><X className="h-4 w-4 mr-1" />Binmedi</Button>
+                        <Button size="sm" variant={st === 'DISEMBARK' ? 'secondary' : 'outline'} className="h-11"
+                          onClick={() => markStudent(a.student_id, 'DISEMBARK')}><ArrowDownToLine className="h-4 w-4 mr-1" />İndi</Button>
+                      </div>
+                    )}
                   </div>
                 );
               })}
