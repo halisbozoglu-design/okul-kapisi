@@ -21,7 +21,15 @@ const MIN_INTERVAL_MS = 8000;
 const MIN_DISTANCE_M = 20;
 const FORCE_INTERVAL_MS = 30000;
 
-interface AssignmentRow extends StudentAssignment { students?: Student | null }
+/** Minimal, non-sensitive student projection used on the driver roll-call screen. */
+type RollCallStudent = Pick<Student, 'id' | 'first_name' | 'last_name' | 'student_no'>;
+
+type RollCallAssignment = Pick<
+  StudentAssignment,
+  'id' | 'student_id' | 'route_id' | 'stop_id' | 'direction'
+>;
+
+interface AssignmentRow extends RollCallAssignment { students?: RollCallStudent | null }
 
 export default function DriverPage() {
   const { user, signOut } = useAuth();
