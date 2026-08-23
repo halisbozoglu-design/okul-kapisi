@@ -667,6 +667,60 @@ export default function DriverPage() {
           </Card>
         )}
       </main>
+
+      <Dialog open={checkOpen} onOpenChange={(o) => { if (!busy) setCheckOpen(o); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Araç Son Kontrolü</DialogTitle>
+            <DialogDescription>
+              Sefer kapatılmadan önce araçta öğrenci kalmadığı doğrulanmalıdır.
+            </DialogDescription>
+          </DialogHeader>
+
+          {pendingStudentIds.length > 0 ? (
+            <Alert variant="destructive">
+              <AlertTitle>Araçta öğrenci görünüyor</AlertTitle>
+              <AlertDescription className="text-sm space-y-2">
+                <p>Önce bu öğrencilerin inişini kaydedin:</p>
+                <ul className="list-disc pl-4">
+                  {pendingStudentIds.map(id => {
+                    const s = assignments.find(a => a.student_id === id)?.students;
+                    return (
+                      <li key={id}>{s ? `${s.first_name} ${s.last_name}` : 'Öğrenci'}
+                        {s?.student_no ? ` · ${s.student_no}` : ''}</li>
+                    );
+                  })}
+                </ul>
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <label className="flex items-start gap-3 rounded-lg border p-3 min-h-11 cursor-pointer">
+              <Checkbox
+                className="mt-0.5 h-5 w-5"
+                checked={finalCheckConfirmed}
+                onCheckedChange={(v) => setFinalCheckConfirmed(v === true)}
+              />
+              <span className="text-sm leading-snug">
+                Aracın önünden arkasına kadar kontrol ettim; araçta öğrenci kalmadığını doğruluyorum.
+              </span>
+            </label>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button variant="outline" className="min-h-11 w-full sm:w-auto"
+              disabled={busy} onClick={() => setCheckOpen(false)}>Vazgeç</Button>
+            <Button
+              className="min-h-11 w-full sm:w-auto"
+              variant="destructive"
+              disabled={busy || pendingStudentIds.length > 0 || !finalCheckConfirmed}
+              onClick={finalizeEndTrip}
+            >
+              Son Kontrolü Onayla ve Seferi Bitir
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }
