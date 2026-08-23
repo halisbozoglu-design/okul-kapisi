@@ -188,6 +188,15 @@ export default function ParentPage() {
       .order('absence_date', { ascending: true });
     setAbsences((absenceRows || []) as TransportAbsence[]);
 
+    const { data: notificationRows } = await db
+      .from('transport_notifications')
+      .select(NOTIFICATION_COLUMNS)
+      .eq('guardian_user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(30);
+    setNotifications((notificationRows || []) as TransportNotification[]);
+
+
     const vehicleIds = [...new Set([
       ...routeRows.map(r => r.vehicle_id),
       ...((tripRes.data || []) as TripRow[]).map(t => t.vehicle_id),
