@@ -24,6 +24,9 @@ import {
   ABSENCE_DIRECTION_LABELS, TransportAbsence, findActiveAbsence, toDateKey,
 } from '@/lib/transport/absences';
 import { DIRECTION_LABELS, TransportDirection, TransportEventType, TripStatus } from '@/types/transport';
+import { TransportNotification } from '@/lib/transport/notifications';
+
+const NOTIFICATION_COLUMNS = 'id, student_id, trip_id, type, title, body, read_at, created_at';
 
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: markerIcon2x,
