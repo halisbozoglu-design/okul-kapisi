@@ -282,6 +282,32 @@ export default function DriverPage() {
 
   useEffect(() => () => providerRef.current.stop(), []);
 
+  // Network state + periodic/online-triggered flush of the device queue.
+  useEffect(() => {
+    const goOnline = () => { setOnline(true); flushQueue(); };
+    const goOffline = () => setOnline(false);
+    window.addEventListener('online', goOnline);
+    window.addEventListener('offline', goOffline);
+    const id = window.setInterval(() => { flushQueue(); }, FLUSH_INTERVAL_MS);
+    return () => {
+      window.removeEventListener('online', goOnline);
+      window.removeEventListener('offline', goOffline);
+      window.clearInterval(id);
+    };
+  }, [flushQueue]);
+
+  // Queued pings always belong to a single trip: drop anything older.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      await queueRef.current.dropOtherTrips(trip?.id ?? null);
+      const size = trip ? await queueRef.current.size(trip.id) : 0;
+      if (!cancelled) setPendingCount(size);
+    })();
+    return () => { cancelled = true; };
+  }, [trip?.id]);
+
+
   const startTrip = async () => {
     if (!staff || !routeId) { toast.error('Hat seçin'); return; }
     if (trip) { toast.error('Zaten aktif bir seferiniz var'); return; }
