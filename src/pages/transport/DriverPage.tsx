@@ -17,6 +17,7 @@ import {
   DIRECTION_LABELS, Student, StudentAssignment, TransportEventType,
 } from '@/types/transport';
 import { TransportAbsence, findActiveAbsence, toDateKey } from '@/lib/transport/absences';
+import { selectApproachingCandidates } from '@/lib/transport/notifications';
 
 const MIN_INTERVAL_MS = 8000;
 const MIN_DISTANCE_M = 20;
