@@ -24,7 +24,7 @@ describe('kamera tarayıcı görüntü kalıcılığı yasağı', () => {
     expect(scannerSource).not.toMatch(/supabase/i);
   });
 
-  it('kapanışta kamera track'lerini durdurur ve canvas'ı temizler', () => {
+  it('kapanista kamera akislarini durdurur ve canvasi temizler', () => {
     expect(scannerSource).toMatch(/getTracks\(\)\.forEach\(\(t\) => t\.stop\(\)\)/);
     expect(scannerSource).toMatch(/clearRect/);
   });
