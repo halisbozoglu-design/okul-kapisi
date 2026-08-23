@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Bus, MapPin, Play, Square, Satellite, LogOut, Check, X, ArrowDownToLine } from 'lucide-react';
+import { Bus, MapPin, Play, Square, Satellite, LogOut, Check, X, ArrowDownToLine, Wifi, WifiOff, CloudUpload } from 'lucide-react';
 import { toast } from 'sonner';
 import { db } from '@/lib/db';
 import { useAuth } from '@/hooks/useAuth';
@@ -18,10 +18,13 @@ import {
 } from '@/types/transport';
 import { TransportAbsence, findActiveAbsence, toDateKey } from '@/lib/transport/absences';
 import { selectApproachingCandidates } from '@/lib/transport/notifications';
+import { LocationQueue, QueuedPing } from '@/lib/transport/locationQueue';
 
 const MIN_INTERVAL_MS = 8000;
 const MIN_DISTANCE_M = 20;
 const FORCE_INTERVAL_MS = 30000;
+const FLUSH_INTERVAL_MS = 20000;
+
 
 /** Minimal, non-sensitive student projection used on the driver roll-call screen. */
 type RollCallStudent = Pick<Student, 'id' | 'first_name' | 'last_name' | 'student_no'>;
@@ -48,8 +51,12 @@ export default function DriverPage() {
   const [geoError, setGeoError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [online, setOnline] = useState(typeof navigator === 'undefined' ? true : navigator.onLine);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [lastSyncAt, setLastSyncAt] = useState<number | null>(null);
 
   const providerRef = useRef(new BrowserGeolocationProvider());
+  const queueRef = useRef<LocationQueue>(new LocationQueue());
   const lastSentRef = useRef<{ at: number; lat: number; lng: number } | null>(null);
   const tripRef = useRef<TransportTrip | null>(null);
   tripRef.current = trip;
@@ -63,6 +70,10 @@ export default function DriverPage() {
   absencesRef.current = absences;
   /** approaching notifications already requested this session (trip:student) */
   const approachRequestedRef = useRef<Set<string>>(new Set());
+  const sampleRef = useRef<LocationSample | null>(null);
+  sampleRef.current = sample;
+
+
 
   // Bootstrap: staff record, routes, active trip
   useEffect(() => {
@@ -162,28 +173,36 @@ export default function DriverPage() {
     return true;
   };
 
-  const pushLocation = useCallback(async (s: LocationSample) => {
+  /** Sends a single queued ping. Never throws; returns ok=false so it stays queued. */
+  const sendPing = useCallback(async (p: QueuedPing) => {
+    const { error } = await db.from('location_pings').insert({
+      institution_id: p.institutionId, trip_id: p.tripId,
+      lat: p.lat, lng: p.lng, accuracy: p.accuracy, speed: p.speed, heading: p.heading,
+      recorded_at: p.recordedAt,
+    });
+    if (error) { console.warn('location ping kuyrukta bekliyor', error.message); return { ok: false }; }
+    return { ok: true };
+  }, []);
+
+  /** Flush the device queue for the currently active trip only. */
+  const flushQueue = useCallback(async (s?: LocationSample | null) => {
     const t = tripRef.current;
     if (!t) return;
-    const now = Date.now();
-    const last = lastSentRef.current;
-    if (last) {
-      const elapsed = now - last.at;
-      if (elapsed < MIN_INTERVAL_MS) return;
-      const moved = distanceMeters(last, s);
-      if (moved < MIN_DISTANCE_M && elapsed < FORCE_INTERVAL_MS) return;
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      setPendingCount(await queueRef.current.size(t.id));
+      return;
     }
-    lastSentRef.current = { at: now, lat: s.lat, lng: s.lng };
-    const recordedAt = new Date(s.timestamp).toISOString();
-    const { error } = await db.from('location_pings').insert({
-      institution_id: t.institution_id, trip_id: t.id,
-      lat: s.lat, lng: s.lng, accuracy: s.accuracy, speed: s.speed, heading: s.heading,
-      recorded_at: recordedAt,
-    });
-    if (error) { console.error(error); return; }
+    const res = await queueRef.current.flush(t.id, sendPing);
+    setPendingCount(res.remaining);
+    if (res.failed || res.sent === 0) return;
+    setLastSyncAt(Date.now());
+
+    const latest = s ?? sampleRef.current;
+    if (!latest) return;
+    const recordedAt = new Date(latest.timestamp).toISOString();
     await db.from('transport_trips').update({
-      last_lat: s.lat, last_lng: s.lng, last_accuracy: s.accuracy,
-      last_speed: s.speed, last_heading: s.heading, last_location_at: recordedAt,
+      last_lat: latest.lat, last_lng: latest.lng, last_accuracy: latest.accuracy,
+      last_speed: latest.speed, last_heading: latest.heading, last_location_at: recordedAt,
     }).eq('id', t.id);
 
     // Ask the server (security definer RPC, re-validates everything) to create
@@ -193,9 +212,9 @@ export default function DriverPage() {
       tripId: t.id,
       tripDirection: t.direction,
       tripStatus: 'active',
-      vehicle: { lat: s.lat, lng: s.lng },
+      vehicle: { lat: latest.lat, lng: latest.lng },
       lastLocationAt: recordedAt,
-      lastSpeedMs: s.speed,
+      lastSpeedMs: latest.speed,
       dateKey: toDateKey(new Date()),
       absences: absencesRef.current,
       alreadyRequested: approachRequestedRef.current,
@@ -219,7 +238,33 @@ export default function DriverPage() {
         console.error('notify_transport_approaching failed', rpcError);
       }
     }
-  }, []);
+  }, [sendPing]);
+
+  const pushLocation = useCallback(async (s: LocationSample) => {
+    const t = tripRef.current;
+    if (!t) return;
+    const now = Date.now();
+    const last = lastSentRef.current;
+    if (last) {
+      const elapsed = now - last.at;
+      if (elapsed < MIN_INTERVAL_MS) return;
+      const moved = distanceMeters(last, s);
+      if (moved < MIN_DISTANCE_M && elapsed < FORCE_INTERVAL_MS) return;
+    }
+    lastSentRef.current = { at: now, lat: s.lat, lng: s.lng };
+
+    // Location telemetry only — no student/guardian data, no auth tokens.
+    await queueRef.current.enqueue({
+      tripId: t.id,
+      institutionId: t.institution_id,
+      lat: s.lat, lng: s.lng,
+      accuracy: s.accuracy, speed: s.speed, heading: s.heading,
+      recordedAt: new Date(s.timestamp).toISOString(),
+    });
+    setPendingCount(await queueRef.current.size(t.id));
+    await flushQueue(s);
+  }, [flushQueue]);
+
 
   const startSharing = useCallback(() => {
     setGeoError(null);
@@ -236,6 +281,32 @@ export default function DriverPage() {
   }, []);
 
   useEffect(() => () => providerRef.current.stop(), []);
+
+  // Network state + periodic/online-triggered flush of the device queue.
+  useEffect(() => {
+    const goOnline = () => { setOnline(true); flushQueue(); };
+    const goOffline = () => setOnline(false);
+    window.addEventListener('online', goOnline);
+    window.addEventListener('offline', goOffline);
+    const id = window.setInterval(() => { flushQueue(); }, FLUSH_INTERVAL_MS);
+    return () => {
+      window.removeEventListener('online', goOnline);
+      window.removeEventListener('offline', goOffline);
+      window.clearInterval(id);
+    };
+  }, [flushQueue]);
+
+  // Queued pings always belong to a single trip: drop anything older.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      await queueRef.current.dropOtherTrips(trip?.id ?? null);
+      const size = trip ? await queueRef.current.size(trip.id) : 0;
+      if (!cancelled) setPendingCount(size);
+    })();
+    return () => { cancelled = true; };
+  }, [trip?.id]);
+
 
   const startTrip = async () => {
     if (!staff || !routeId) { toast.error('Hat seçin'); return; }
@@ -281,6 +352,8 @@ export default function DriverPage() {
   const endTrip = async () => {
     if (!trip) return;
     setBusy(true);
+    // Try to deliver whatever is still queued for THIS trip before closing it.
+    await flushQueue();
     const endLogged = await logEvent('END_TRIP');
     const { error } = await db.from('transport_trips').update({
       status: 'completed', ended_at: new Date().toISOString(), ended_by: user?.id ?? null,
@@ -289,6 +362,10 @@ export default function DriverPage() {
     if (error) { toast.error(error.message); return; }
     if (!endLogged) toast.warning('Sefer kapandı ancak bitiş kaydı yazılamadı.');
     stopSharing();
+    const stillQueued = await queueRef.current.size(trip.id);
+    if (stillQueued > 0) toast.warning(`${stillQueued} konum kaydı gönderilemedi ve silindi.`);
+    await queueRef.current.clear();
+    setPendingCount(0);
     setTrip(null);
     tripRef.current = null;
     lastSentRef.current = null;
@@ -297,6 +374,7 @@ export default function DriverPage() {
     setAbsences([]);
     toast.success('Sefer tamamlandı');
   };
+
 
   const markStudent = async (studentId: string, type: TransportEventType) => {
     const previous = statuses[studentId];
@@ -436,10 +514,38 @@ export default function DriverPage() {
                 {sample.lat.toFixed(5)}, {sample.lng.toFixed(5)} · {new Date(sample.timestamp).toLocaleTimeString('tr-TR')}
               </p>
             )}
+
+            {/* Bağlantı ve senkronizasyon durumu */}
+            <div className="rounded-md border p-2 space-y-1">
+              <div className="flex items-center justify-between gap-2">
+                <span className="flex items-center gap-1.5 text-xs font-medium">
+                  {online
+                    ? <><Wifi className="h-3.5 w-3.5 text-primary" />Çevrimiçi</>
+                    : <><WifiOff className="h-3.5 w-3.5 text-destructive" />Çevrimdışı</>}
+                </span>
+                <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <CloudUpload className="h-3.5 w-3.5" />
+                  Bekleyen: {pendingCount}
+                </span>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Son başarılı gönderim: {lastSyncAt ? new Date(lastSyncAt).toLocaleTimeString('tr-TR') : '-'}
+              </p>
+              {pendingCount > 0 && (
+                <p className="text-[11px] text-muted-foreground">
+                  {online
+                    ? 'Konum kaydı cihazda bekliyor, gönderim sürüyor.'
+                    : 'Konum kaydı cihazda bekliyor. Bağlantı gelince otomatik gönderilecek.'}
+                </p>
+              )}
+            </div>
+
             <p className="text-[11px] text-muted-foreground">
-              Konum yalnızca sefer sırasında ve izniniz ile paylaşılır. Ekran kapalıyken telefon
-              tarayıcısı konum göndermeyi durdurabilir; ekranı açık tutun.
+              Konum yalnızca sefer sırasında ve izniniz ile paylaşılır. Canlı takip için uygulamanın
+              açık ve ekranın aktif olması gerekir; iPhone/Android tarayıcısı arka planda konum
+              göndermeyi durdurabilir.
             </p>
+
           </CardContent>
         </Card>
 
