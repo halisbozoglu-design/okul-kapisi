@@ -89,6 +89,8 @@ export interface RouteStop {
   lat: number | null;
   lng: number | null;
   planned_time: string | null;
+  planned_to_school: string | null;
+  planned_to_home: string | null;
   is_active: boolean;
 }
 
