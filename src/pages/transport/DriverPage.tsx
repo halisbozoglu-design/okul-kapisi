@@ -51,8 +51,12 @@ export default function DriverPage() {
   const [geoError, setGeoError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [online, setOnline] = useState(typeof navigator === 'undefined' ? true : navigator.onLine);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [lastSyncAt, setLastSyncAt] = useState<number | null>(null);
 
   const providerRef = useRef(new BrowserGeolocationProvider());
+  const queueRef = useRef<LocationQueue>(new LocationQueue());
   const lastSentRef = useRef<{ at: number; lat: number; lng: number } | null>(null);
   const tripRef = useRef<TransportTrip | null>(null);
   tripRef.current = trip;
@@ -66,6 +70,7 @@ export default function DriverPage() {
   absencesRef.current = absences;
   /** approaching notifications already requested this session (trip:student) */
   const approachRequestedRef = useRef<Set<string>>(new Set());
+
 
   // Bootstrap: staff record, routes, active trip
   useEffect(() => {
