@@ -521,6 +521,53 @@ export default function ParentPage() {
           );
         })}
 
+        {children.length > 0 && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center justify-between gap-2">
+                <span className="flex items-center gap-2">
+                  <Bell className="h-4 w-4" />Bildirimler
+                  {unreadCount > 0 && <Badge className="shrink-0">{unreadCount}</Badge>}
+                </span>
+                {unreadCount > 0 && (
+                  <Button
+                    size="sm" variant="ghost" className="h-9 text-xs"
+                    onClick={() => markRead(notifications.filter(n => n.read_at == null).map(n => n.id))}
+                  >
+                    <CheckCheck className="h-3.5 w-3.5 mr-1" />Tümünü okundu yap
+                  </Button>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {notifications.length === 0 ? (
+                <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                  <BellOff className="h-3.5 w-3.5" />Henüz bildirim yok.
+                </p>
+              ) : notifications.map(n => (
+                <button
+                  key={n.id}
+                  type="button"
+                  onClick={() => markRead(n.read_at == null ? [n.id] : [])}
+                  className={`w-full text-left rounded-lg border p-3 min-h-11 ${
+                    n.read_at == null ? 'border-primary bg-primary/5' : 'bg-muted/40'}`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-xs font-medium truncate">{n.title}</p>
+                    <span className="text-[11px] text-muted-foreground shrink-0">
+                      {new Date(n.created_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground break-words">
+                    {childName(n.student_id)}{n.body ? ` · ${n.body}` : ''}
+                  </p>
+                </button>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
+
         <FormModal
           open={!!absenceForm}
           onOpenChange={o => { if (!o) setAbsenceForm(null); }}
