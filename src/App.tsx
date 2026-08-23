@@ -35,10 +35,18 @@ import TripsPage from "./pages/transport/TripsPage";
 import DriverPage from "./pages/transport/DriverPage";
 import ParentPage from "./pages/transport/ParentPage";
 
+import SecurityCheckInPage from "./pages/security/SecurityCheckInPage";
+import VisitorsInsidePage from "./pages/security/VisitorsInsidePage";
+import VisitorLedgerPage from "./pages/security/VisitorLedgerPage";
+import SecurityLocationsPage from "./pages/security/SecurityLocationsPage";
+import StudentDutyPage from "./pages/security/StudentDutyPage";
+
 const queryClient = new QueryClient();
 
 const ADMIN_ROLES = ['super_admin', 'kurum_yoneticisi', 'okul_yoneticisi'] as const;
 const TRANSPORT_ROLES = ['super_admin', 'kurum_yoneticisi', 'okul_yoneticisi', 'mudur_yardimcisi'] as const;
+const SECURITY_OPERATORS = ['super_admin', 'kurum_yoneticisi', 'okul_yoneticisi', 'mudur_yardimcisi', 'personel'] as const;
+const SECURITY_MANAGERS = ['super_admin', 'kurum_yoneticisi', 'okul_yoneticisi', 'mudur_yardimcisi'] as const;
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -81,6 +89,13 @@ const App = () => (
             <Route path="/transport/trips" element={<ProtectedRoute requiredRoles={[...TRANSPORT_ROLES]}><TripsPage /></ProtectedRoute>} />
             <Route path="/transport/driver" element={<ProtectedRoute><DriverPage /></ProtectedRoute>} />
             <Route path="/transport/parent" element={<ProtectedRoute requiredRoles={['veli', 'super_admin', 'kurum_yoneticisi', 'okul_yoneticisi']}><ParentPage /></ProtectedRoute>} />
+
+            {/* Güvenlik & Ziyaretçi */}
+            <Route path="/security/visitors/check-in" element={<ProtectedRoute requiredRoles={[...SECURITY_OPERATORS]}><SecurityCheckInPage /></ProtectedRoute>} />
+            <Route path="/security/visitors/inside" element={<ProtectedRoute requiredRoles={[...SECURITY_OPERATORS]}><VisitorsInsidePage /></ProtectedRoute>} />
+            <Route path="/security/visitors/ledger" element={<ProtectedRoute requiredRoles={[...SECURITY_OPERATORS]}><VisitorLedgerPage /></ProtectedRoute>} />
+            <Route path="/security/locations" element={<ProtectedRoute requiredRoles={[...SECURITY_MANAGERS]}><SecurityLocationsPage /></ProtectedRoute>} />
+            <Route path="/security/student-duty" element={<ProtectedRoute requiredRoles={[...SECURITY_MANAGERS, 'ogretmen']}><StudentDutyPage /></ProtectedRoute>} />
 
             <Route path="*" element={<NotFound />} />
           </Routes>

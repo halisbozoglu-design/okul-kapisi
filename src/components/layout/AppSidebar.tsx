@@ -18,6 +18,9 @@ import {
   History,
   UserSquare2,
   Smartphone,
+  ScanFace,
+  ClipboardList,
+  ShieldCheck,
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useLocation } from 'react-router-dom';
@@ -82,6 +85,17 @@ const transportItems: NavItem[] = [
   },
 ];
 
+const SECURITY_MANAGERS: AppRole[] = ['super_admin', 'kurum_yoneticisi', 'okul_yoneticisi', 'mudur_yardimcisi'];
+const SECURITY_OPERATORS: AppRole[] = [...SECURITY_MANAGERS, 'personel'];
+
+const securityItems: NavItem[] = [
+  { title: 'Hızlı Ziyaretçi Girişi', url: '/security/visitors/check-in', icon: ScanFace, roles: SECURITY_OPERATORS },
+  { title: 'İçeridekiler', url: '/security/visitors/inside', icon: Users, roles: SECURITY_OPERATORS },
+  { title: 'Ziyaretçi Defteri', url: '/security/visitors/ledger', icon: ClipboardList, roles: SECURITY_OPERATORS },
+  { title: 'Giriş / Nöbet Yerleri', url: '/security/locations', icon: DoorOpen, roles: SECURITY_MANAGERS },
+  { title: 'Nöbetçi Öğrenci', url: '/security/student-duty', icon: ShieldCheck, roles: [...SECURITY_MANAGERS, 'ogretmen'] },
+];
+
 const adminItems: NavItem[] = [
   { title: 'Kullanıcı Yönetimi', url: '/admin/users', icon: Users, roles: ['super_admin'] },
   { title: 'Rol Yönetimi', url: '/admin/roles', icon: Shield, roles: ['super_admin'] },
@@ -99,6 +113,7 @@ export function AppSidebar() {
   const visibleMain = filterByRole(mainItems);
   const visibleSettings = filterByRole(settingsItems);
   const visibleTransport = filterByRole(transportItems);
+  const visibleSecurity = filterByRole(securityItems);
   const visibleAdmin = filterByRole(adminItems);
 
   return (
@@ -173,6 +188,28 @@ export function AppSidebar() {
             </SidebarGroupContent>
           </SidebarGroup>
         )}
+
+        {visibleSecurity.length > 0 && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Güvenlik &amp; Ziyaretçi</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {visibleSecurity.map(item => (
+                  <SidebarMenuItem key={item.url}>
+                    <SidebarMenuButton asChild>
+                      <NavLink to={item.url} className="hover:bg-sidebar-accent" activeClassName="bg-sidebar-accent text-sidebar-primary font-medium">
+                        <item.icon className="mr-2 h-4 w-4" />
+                        {!collapsed && <span>{item.title}</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
+
 
         {visibleAdmin.length > 0 && (
           <SidebarGroup>
