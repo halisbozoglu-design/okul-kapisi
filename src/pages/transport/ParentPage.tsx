@@ -339,6 +339,29 @@ export default function ParentPage() {
     load();
   };
 
+  const childName = (studentId: string) => {
+    const c = children.find(x => x.student_id === studentId);
+    return c ? `${c.first_name} ${c.last_name}` : '';
+  };
+
+  const unreadCount = notifications.filter(n => n.read_at == null).length;
+
+  const markRead = async (ids: string[]) => {
+    if (ids.length === 0) return;
+    const readAt = new Date().toISOString();
+    setNotifications(prev => prev.map(n =>
+      ids.includes(n.id) && n.read_at == null ? { ...n, read_at: readAt } : n));
+    const { error } = await db.from('transport_notifications')
+      .update({ read_at: readAt })
+      .in('id', ids)
+      .is('read_at', null);
+    if (error) {
+      toast.error('Bildirim okundu olarak işaretlenemedi.');
+      load();
+    }
+  };
+
+
   if (loading) {
     return <div className="min-h-screen grid place-items-center text-muted-foreground">Yükleniyor...</div>;
   }
