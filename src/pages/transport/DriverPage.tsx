@@ -60,7 +60,7 @@ export default function DriverPage() {
         if (mine.length === 1) setRouteId(mine[0].id);
 
         const { data: tripRows } = await db.from('transport_trips').select('*')
-          .eq('status', 'active').is('deleted_at', null).order('started_at', { ascending: false }).limit(1);
+          .eq('status', 'active').eq('driver_staff_id', me.id).is('deleted_at', null).order('started_at', { ascending: false }).limit(1);
         const active = (tripRows?.[0] ?? null) as TransportTrip | null;
         if (active) { setTrip(active); setRouteId(active.route_id); setDirection(active.direction); }
       }
@@ -89,15 +89,24 @@ export default function DriverPage() {
 
   useEffect(() => { if (trip) loadStudents(trip); }, [trip?.id, loadStudents]); // eslint-disable-line
 
-  const logEvent = async (type: TransportEventType, extra: Record<string, unknown> = {}) => {
-    const t = tripRef.current;
-    if (!t) return;
-    await db.from('transport_events').insert({
+  const logEvent = async (
+    type: TransportEventType,
+    extra: Record<string, unknown> = {},
+    tripOverride?: TransportTrip,
+  ): Promise<boolean> => {
+    const t = tripOverride ?? tripRef.current;
+    if (!t) return false;
+    const { error } = await db.from('transport_events').insert({
       institution_id: t.institution_id, trip_id: t.id, event_type: type,
       actor_user_id: user?.id ?? null,
       lat: sample?.lat ?? null, lng: sample?.lng ?? null,
       ...extra,
     });
+    if (error) {
+      console.error('transport_events insert failed', type, error);
+      return false;
+    }
+    return true;
   };
 
   const pushLocation = useCallback(async (s: LocationSample) => {
@@ -143,9 +152,19 @@ export default function DriverPage() {
 
   const startTrip = async () => {
     if (!staff || !routeId) { toast.error('Hat seçin'); return; }
+    if (trip) { toast.error('Zaten aktif bir seferiniz var'); return; }
     const route = routes.find(r => r.id === routeId);
     if (!route) return;
     setBusy(true);
+
+    // Guard against a second active trip started from another device/tab.
+    const { data: existing } = await db.from('transport_trips').select('id')
+      .eq('status', 'active').eq('driver_staff_id', staff.id).is('deleted_at', null).limit(1);
+    if (existing && existing.length > 0) {
+      setBusy(false);
+      toast.error('Bu şoför için zaten aktif bir sefer var. Sayfayı yenileyin.');
+      return;
+    }
     const { data, error } = await db.from('transport_trips').insert({
       institution_id: route.institution_id,
       route_id: route.id,
@@ -155,24 +174,33 @@ export default function DriverPage() {
       direction, status: 'active', started_by: user?.id ?? null,
     }).select('*').single();
     setBusy(false);
-    if (error) { toast.error(error.message); return; }
+    if (error) {
+      toast.error(
+        error.code === '23505'
+          ? 'Bu şoför için zaten aktif bir sefer var.'
+          : error.message,
+      );
+      return;
+    }
     const newTrip = data as TransportTrip;
     setTrip(newTrip);
     tripRef.current = newTrip;
-    await logEvent('START_TRIP');
-    toast.success('Sefer başladı');
+    const logged = await logEvent('START_TRIP', {}, newTrip);
+    if (!logged) toast.warning('Sefer başladı ancak başlangıç kaydı yazılamadı.');
+    else toast.success('Sefer başladı');
     startSharing();
   };
 
   const endTrip = async () => {
     if (!trip) return;
     setBusy(true);
-    await logEvent('END_TRIP');
+    const endLogged = await logEvent('END_TRIP');
     const { error } = await db.from('transport_trips').update({
       status: 'completed', ended_at: new Date().toISOString(), ended_by: user?.id ?? null,
     }).eq('id', trip.id);
     setBusy(false);
     if (error) { toast.error(error.message); return; }
+    if (!endLogged) toast.warning('Sefer kapandı ancak bitiş kaydı yazılamadı.');
     stopSharing();
     setTrip(null);
     tripRef.current = null;
@@ -183,8 +211,17 @@ export default function DriverPage() {
   };
 
   const markStudent = async (studentId: string, type: TransportEventType) => {
+    const previous = statuses[studentId];
     setStatuses(prev => ({ ...prev, [studentId]: type }));
-    await logEvent(type, { student_id: studentId });
+    const ok = await logEvent(type, { student_id: studentId });
+    if (!ok) {
+      setStatuses(prev => {
+        const next = { ...prev };
+        if (previous) next[studentId] = previous; else delete next[studentId];
+        return next;
+      });
+      toast.error('Yoklama kaydedilemedi, tekrar deneyin.');
+    }
   };
 
   if (loading) {
