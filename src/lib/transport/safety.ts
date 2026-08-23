@@ -5,15 +5,15 @@
  * (`transport_trips`, `location_pings`, `route_stops`). No new table, no
  * persistence, no duplicate bookkeeping — alerts are re-derived on every render.
  *
- * Deliberately NOT implemented: a "DELAYED" alert. There is no reliable planned
- * schedule for a trip in the current schema (`route_stops.planned_time` is
- * optional per-stop and not tied to a trip start), so any delay figure would be
- * fabricated.
+ * DELAYED is supported ONLY through the direction-aware delay engine
+ * (`./delay`), which needs admin-entered `planned_to_school` /
+ * `planned_to_home` times. Without those, no delay is ever fabricated.
  */
 
 import { haversineMeters, type LatLng } from './eta';
+import { computeTripDelay, type PlannedStop } from './delay';
 
-export type SafetyAlertType = 'GPS_LOST' | 'POOR_GPS' | 'LONG_STOP' | 'ROUTE_DEVIATION';
+export type SafetyAlertType = 'GPS_LOST' | 'POOR_GPS' | 'LONG_STOP' | 'ROUTE_DEVIATION' | 'DELAYED';
 export type SafetySeverity = 'critical' | 'high' | 'warning';
 
 export interface SafetyAlert {
@@ -41,7 +41,9 @@ export const ROUTE_DEVIATION_M = 400;
 export interface TripSnapshot {
   id: string;
   route_id: string;
+  direction?: string;
   started_at: string;
+  last_speed?: number | null;
   last_lat: number | null;
   last_lng: number | null;
   last_accuracy: number | null;
@@ -56,6 +58,9 @@ export interface PingSample {
 
 export interface StopCoord extends LatLng {
   order_index: number;
+  name?: string;
+  planned_to_school?: string | null;
+  planned_to_home?: string | null;
 }
 
 const secondsSince = (iso: string | null, now: number) =>
@@ -206,6 +211,32 @@ export function computeTripAlerts(input: SafetyInput): SafetyAlert[] {
     }
   }
 
+  // --- DELAYED --------------------------------------------------------------
+  // Only from the reliable, direction-aware planned-time engine.
+  if (!stale && trip.direction) {
+    const delay = computeTripDelay({
+      trip: {
+        id: tripId,
+        direction: trip.direction,
+        last_lat: trip.last_lat,
+        last_lng: trip.last_lng,
+        last_speed: trip.last_speed ?? null,
+        last_location_at: trip.last_location_at,
+      },
+      stops: stops as PlannedStop[],
+      now,
+    });
+    if (delay.delayed) {
+      alerts.push({
+        tripId,
+        type: 'DELAYED',
+        severity: delay.severity === 'high' ? 'high' : 'warning',
+        title: 'Tahmini gecikme',
+        detail: `Tahmini ${delay.delayMinutes} dk gecikme · ${delay.stopName} durağı (plan ${delay.plannedLocalTime}, tahmini varış ~${delay.etaMinutes} dk).`,
+      });
+    }
+  }
+
   return alerts;
 }
 
@@ -228,6 +259,7 @@ export interface AlertSummary {
   longStop: number;
   routeDeviation: number;
   poorGps: number;
+  delayed: number;
 }
 
 export function summarizeAlerts(alerts: SafetyAlert[]): AlertSummary {
@@ -238,5 +270,6 @@ export function summarizeAlerts(alerts: SafetyAlert[]): AlertSummary {
     longStop: alerts.filter(a => a.type === 'LONG_STOP').length,
     routeDeviation: alerts.filter(a => a.type === 'ROUTE_DEVIATION').length,
     poorGps: alerts.filter(a => a.type === 'POOR_GPS').length,
+    delayed: alerts.filter(a => a.type === 'DELAYED').length,
   };
 }
