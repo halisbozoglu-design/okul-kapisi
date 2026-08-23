@@ -349,9 +349,70 @@ export default function DriverPage() {
     startSharing();
   };
 
-  const endTrip = async () => {
+  /**
+   * Reads the trip's event history and returns the students that may still be
+   * inside the vehicle. Returns null when the query fails (fail closed).
+   */
+  const fetchOnboardStudentIds = async (tripId: string): Promise<string[] | null> => {
+    const { data, error } = await db.from('transport_events')
+      .select('student_id, event_type, occurred_at, created_at')
+      .eq('trip_id', tripId)
+      .order('occurred_at', { ascending: true });
+    if (error) {
+      console.error('final check query failed', error);
+      return null;
+    }
+    return deriveOnboardStudentIds((data || []) as OnboardEventLike[]);
+  };
+
+  /** Step 1 — never closes the trip directly; opens the safety check first. */
+  const requestEndTrip = async () => {
     if (!trip) return;
     setBusy(true);
+    const onboard = await fetchOnboardStudentIds(trip.id);
+    setBusy(false);
+    if (onboard === null) {
+      toast.error('Güvenlik kontrolü yapılamadı. Sefer kapatılmadı, tekrar deneyin.');
+      return;
+    }
+    setPendingStudentIds(onboard);
+    setFinalCheckConfirmed(false);
+    setCheckOpen(true);
+  };
+
+  /** Step 2 — runs only after the physical final check is confirmed. */
+  const finalizeEndTrip = async () => {
+    if (!trip || !finalCheckConfirmed) return;
+    setBusy(true);
+
+    // Re-validate right before closing: another device may have logged a boarding.
+    const onboard = await fetchOnboardStudentIds(trip.id);
+    if (onboard === null) {
+      setBusy(false);
+      toast.error('Güvenlik kontrolü yapılamadı. Sefer kapatılmadı, tekrar deneyin.');
+      return;
+    }
+    if (onboard.length > 0) {
+      setPendingStudentIds(onboard);
+      setBusy(false);
+      toast.error('Araçta inişi kaydedilmemiş öğrenci var. Önce inişlerini kaydedin.');
+      return;
+    }
+
+    // Audit evidence of the physical check (no personal data) — fail closed.
+    const checkLogged = await logEvent('VEHICLE_CHECK', {
+      note: JSON.stringify({
+        checked_at: new Date().toISOString(),
+        actor_user_id: user?.id ?? null,
+        pending_student_count: 0,
+      }),
+    });
+    if (!checkLogged) {
+      setBusy(false);
+      toast.error('Son kontrol kaydı yazılamadı. Sefer kapatılmadı.');
+      return;
+    }
+
     // Try to deliver whatever is still queued for THIS trip before closing it.
     await flushQueue();
     const endLogged = await logEvent('END_TRIP');
@@ -366,6 +427,9 @@ export default function DriverPage() {
     if (stillQueued > 0) toast.warning(`${stillQueued} konum kaydı gönderilemedi ve silindi.`);
     await queueRef.current.clear();
     setPendingCount(0);
+    setCheckOpen(false);
+    setFinalCheckConfirmed(false);
+    setPendingStudentIds([]);
     setTrip(null);
     tripRef.current = null;
     lastSentRef.current = null;
@@ -374,6 +438,7 @@ export default function DriverPage() {
     setAbsences([]);
     toast.success('Sefer tamamlandı');
   };
+
 
 
   const markStudent = async (studentId: string, type: TransportEventType) => {
