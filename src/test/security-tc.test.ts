@@ -46,7 +46,7 @@ describe('OCR yardımcıları', () => {
   });
 
   it('Türkçe adı normalize eder', () => {
-    expect(normalizeTrName(' çiğdem  şahin1 ')).toBe('ÇİĞDEM ŞAHIN');
+    expect(normalizeTrName(' çiğdem  şahin1 ')).toBe('ÇİĞDEM ŞAHİN');
   });
 
   it('ad eşleşmesini tolere eder', () => {
