@@ -154,3 +154,23 @@ describe('summary helpers', () => {
     expect(worstSeverity([])).toBeNull();
   });
 });
+
+describe('capacity alerts', () => {
+  const base = {
+    id: 't1', route_id: 'r1', started_at: new Date().toISOString(),
+    last_lat: 39.9, last_lng: 32.8, last_accuracy: 10,
+    last_location_at: new Date().toISOString(),
+  };
+  it('raises a critical alert when occupancy exceeds capacity', () => {
+    const alerts = computeTripAlerts({ trip: base, occupancy: { count: 5, capacity: 4 } });
+    const cap = alerts.find(a => a.type === 'CAPACITY_EXCEEDED');
+    expect(cap?.severity).toBe('critical');
+    expect(summarizeAlerts(alerts).capacityExceeded).toBe(1);
+  });
+  it('does not alert at or below capacity, or without capacity', () => {
+    expect(computeTripAlerts({ trip: base, occupancy: { count: 4, capacity: 4 } })
+      .some(a => a.type === 'CAPACITY_EXCEEDED')).toBe(false);
+    expect(computeTripAlerts({ trip: base, occupancy: { count: 9, capacity: null } })
+      .some(a => a.type === 'CAPACITY_EXCEEDED')).toBe(false);
+  });
+});
