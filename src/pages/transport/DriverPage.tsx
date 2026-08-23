@@ -70,6 +70,9 @@ export default function DriverPage() {
   absencesRef.current = absences;
   /** approaching notifications already requested this session (trip:student) */
   const approachRequestedRef = useRef<Set<string>>(new Set());
+  const sampleRef = useRef<LocationSample | null>(null);
+  sampleRef.current = sample;
+
 
 
   // Bootstrap: staff record, routes, active trip
