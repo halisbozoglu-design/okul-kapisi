@@ -9,7 +9,7 @@ import 'leaflet/dist/leaflet.css';
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
-import { AlertTriangle, MapPinOff, PauseCircle, Route as RouteIcon } from 'lucide-react';
+import { AlertTriangle, Clock, MapPinOff, PauseCircle, Route as RouteIcon } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { db } from '@/lib/db';
 import { Route as RouteType, TransportTrip, Vehicle, DIRECTION_LABELS } from '@/types/transport';
@@ -94,14 +94,17 @@ export default function LiveTrackingPage() {
     const routeIds = Array.from(new Set(rows.map(t => t.route_id)));
     if (!routeIds.length) { setStopsByRoute({}); return; }
     const { data } = await db.from('route_stops')
-      .select('route_id,lat,lng,order_index')
+      .select('route_id,name,lat,lng,order_index,planned_to_school,planned_to_home')
       .in('route_id', routeIds)
       .is('deleted_at', null)
       .not('lat', 'is', null)
       .not('lng', 'is', null);
     const grouped: Record<string, StopCoord[]> = {};
-    ((data || []) as { route_id: string; lat: number; lng: number; order_index: number }[]).forEach(s => {
-      (grouped[s.route_id] ||= []).push({ lat: s.lat, lng: s.lng, order_index: s.order_index });
+    ((data || []) as (StopCoord & { route_id: string })[]).forEach(s => {
+      (grouped[s.route_id] ||= []).push({
+        lat: s.lat, lng: s.lng, order_index: s.order_index, name: s.name,
+        planned_to_school: s.planned_to_school ?? null, planned_to_home: s.planned_to_home ?? null,
+      });
     });
     setStopsByRoute(grouped);
   }, []);
@@ -159,7 +162,9 @@ export default function LiveTrackingPage() {
         trip: {
           id: t.id,
           route_id: t.route_id,
+          direction: t.direction,
           started_at: t.started_at,
+          last_speed: t.last_speed,
           last_lat: t.last_lat,
           last_lng: t.last_lng,
           last_accuracy: t.last_accuracy,
@@ -185,6 +190,7 @@ export default function LiveTrackingPage() {
     { key: 'gps', icon: MapPinOff, label: 'GPS kaybı', value: summary.gpsLost },
     { key: 'stop', icon: PauseCircle, label: 'Uzun durma', value: summary.longStop },
     { key: 'dev', icon: RouteIcon, label: 'Yaklaşık rota sapması', value: summary.routeDeviation },
+    { key: 'delay', icon: Clock, label: 'Gecikme (tahmini)', value: summary.delayed },
   ];
 
   return (
@@ -197,7 +203,7 @@ export default function LiveTrackingPage() {
             <AlertTriangle className="h-4 w-4 text-muted-foreground" />
             <h2 className="text-sm font-semibold">Operasyon Uyarıları</h2>
           </div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
             {summaryTiles.map(t => (
               <div key={t.key} className="rounded-md border p-3">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -234,7 +240,8 @@ export default function LiveTrackingPage() {
           <p className="text-[11px] leading-snug text-muted-foreground">
             Not: Rota sapması, durak koordinatlarından oluşturulan <strong>yaklaşık durak koridoruna</strong> göre
             hesaplanır; gerçek yol geometrisi kullanılmaz. Planlanan sefer saati verisi bulunmadığı için gecikme
-            uyarısı üretilmez.
+            uyarısı yalnızca durakların yön bazlı planlı saatleri girilmişse, GPS konumu ve
+            yaklaşık ETA üzerinden <strong>tahmin</strong> olarak üretilir.
           </p>
         </CardContent>
       </Card>

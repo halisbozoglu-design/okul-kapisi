@@ -26,7 +26,7 @@ export const SERVICE_TIMEZONE = 'Europe/Istanbul';
 export type PlanDirection = 'to_school' | 'to_home';
 
 export interface PlannedStop {
-  name: string;
+  name?: string | null;
   order_index: number;
   lat: number | null;
   lng: number | null;
@@ -208,7 +208,7 @@ export function computeTripDelay(input: DelayInput): DelayResult {
     delayed: true,
     delayMinutes,
     etaMinutes: eta.etaMinutes,
-    stopName: picked.stop.name,
+    stopName: picked.stop.name || 'Durak',
     plannedLocalTime: `${hh}:${mm}`,
     severity: delayMinutes >= DELAY_HIGH_MINUTES ? 'high' : 'warning',
   };

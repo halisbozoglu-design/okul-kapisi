@@ -35,7 +35,7 @@ export default function RoutesPage() {
 
   const [stopsRoute, setStopsRoute] = useState<RouteType | null>(null);
   const [stops, setStops] = useState<RouteStop[]>([]);
-  const [stopForm, setStopForm] = useState({ name: '', order_index: '', lat: '', lng: '', planned_time: '' });
+  const [stopForm, setStopForm] = useState({ name: '', order_index: '', lat: '', lng: '', planned_time: '', planned_to_school: '', planned_to_home: '' });
 
   const vehicleLabel = (id: string | null) => {
     const v = vehicles.data.find(x => x.id === id);
@@ -95,9 +95,11 @@ export default function RoutesPage() {
       lat: stopForm.lat ? Number(stopForm.lat) : null,
       lng: stopForm.lng ? Number(stopForm.lng) : null,
       planned_time: stopForm.planned_time || null,
+      planned_to_school: stopForm.planned_to_school || null,
+      planned_to_home: stopForm.planned_to_home || null,
     });
     if (error) { toast.error(error.message); return; }
-    setStopForm({ name: '', order_index: '', lat: '', lng: '', planned_time: '' });
+    setStopForm({ name: '', order_index: '', lat: '', lng: '', planned_time: '', planned_to_school: '', planned_to_home: '' });
     toast.success('Durak eklendi');
     loadStops(stopsRoute);
   };
@@ -189,7 +191,7 @@ export default function RoutesPage() {
                 <div className="min-w-0">
                   <p className="font-medium truncate">{s.order_index}. {s.name}</p>
                   <p className="text-xs text-muted-foreground truncate">
-                    {s.planned_time ? `${s.planned_time} · ` : ''}{s.lat && s.lng ? `${s.lat.toFixed(5)}, ${s.lng.toFixed(5)}` : 'konum yok'}
+                    {s.planned_to_school ? `Gidiş ${s.planned_to_school.slice(0, 5)} · ` : ''}{s.planned_to_home ? `Dönüş ${s.planned_to_home.slice(0, 5)} · ` : ''}{s.lat && s.lng ? `${s.lat.toFixed(5)}, ${s.lng.toFixed(5)}` : 'konum yok'}
                   </p>
                 </div>
                 <Button variant="ghost" size="icon" className="h-11 w-11 shrink-0" onClick={() => deleteStop(s.id)}>
@@ -202,7 +204,8 @@ export default function RoutesPage() {
             <div className="space-y-2"><Label>Durak Adı *</Label><Input value={stopForm.name} onChange={e => setStopForm({ ...stopForm, name: e.target.value })} required /></div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2"><Label>Sıra</Label><Input inputMode="numeric" value={stopForm.order_index} onChange={e => setStopForm({ ...stopForm, order_index: e.target.value })} /></div>
-              <div className="space-y-2"><Label>Saat</Label><Input type="time" value={stopForm.planned_time} onChange={e => setStopForm({ ...stopForm, planned_time: e.target.value })} /></div>
+              <div className="space-y-2"><Label>Planlı Saat (Gidiş)</Label><Input type="time" value={stopForm.planned_to_school} onChange={e => setStopForm({ ...stopForm, planned_to_school: e.target.value })} /></div>
+              <div className="space-y-2"><Label>Planlı Saat (Dönüş)</Label><Input type="time" value={stopForm.planned_to_home} onChange={e => setStopForm({ ...stopForm, planned_to_home: e.target.value })} /></div>
               <div className="space-y-2"><Label>Enlem</Label><Input inputMode="decimal" value={stopForm.lat} onChange={e => setStopForm({ ...stopForm, lat: e.target.value })} /></div>
               <div className="space-y-2"><Label>Boylam</Label><Input inputMode="decimal" value={stopForm.lng} onChange={e => setStopForm({ ...stopForm, lng: e.target.value })} /></div>
             </div>
