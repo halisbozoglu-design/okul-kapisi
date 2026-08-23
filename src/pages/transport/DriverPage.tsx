@@ -84,7 +84,7 @@ export default function DriverPage() {
       .eq('route_id', activeTrip.route_id)
       .eq('is_active', true)
       .is('deleted_at', null);
-    const rows = ((data || []) as AssignmentRow[])
+    const rows = ((data || []) as unknown as AssignmentRow[])
       .filter(a => a.direction === 'both' || a.direction === activeTrip.direction);
     setAssignments(rows);
 
