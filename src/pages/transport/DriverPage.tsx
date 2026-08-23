@@ -21,7 +21,15 @@ const MIN_INTERVAL_MS = 8000;
 const MIN_DISTANCE_M = 20;
 const FORCE_INTERVAL_MS = 30000;
 
-interface AssignmentRow extends StudentAssignment { students?: Student | null }
+/** Minimal, non-sensitive student projection used on the driver roll-call screen. */
+type RollCallStudent = Pick<Student, 'id' | 'first_name' | 'last_name' | 'student_no'>;
+
+type RollCallAssignment = Pick<
+  StudentAssignment,
+  'id' | 'student_id' | 'route_id' | 'stop_id' | 'direction'
+>;
+
+interface AssignmentRow extends RollCallAssignment { students?: RollCallStudent | null }
 
 export default function DriverPage() {
   const { user, signOut } = useAuth();
@@ -70,9 +78,13 @@ export default function DriverPage() {
   }, [user]);
 
   const loadStudents = useCallback(async (activeTrip: TransportTrip) => {
+    // Explicit columns only — no national_id / guardian_phone or other sensitive fields.
     const { data } = await db.from('student_transport_assignments')
-      .select('*, students(*)').eq('route_id', activeTrip.route_id).is('deleted_at', null);
-    const rows = ((data || []) as AssignmentRow[])
+      .select('id, student_id, route_id, stop_id, direction, students(id, first_name, last_name, student_no)')
+      .eq('route_id', activeTrip.route_id)
+      .eq('is_active', true)
+      .is('deleted_at', null);
+    const rows = ((data || []) as unknown as AssignmentRow[])
       .filter(a => a.direction === 'both' || a.direction === activeTrip.direction);
     setAssignments(rows);
 
