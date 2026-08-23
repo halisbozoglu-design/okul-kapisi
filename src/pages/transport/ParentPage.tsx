@@ -258,8 +258,64 @@ export default function ParentPage() {
       direction: trip?.direction ?? assignment?.direction ?? null,
     });
     const vehicle = vehicles.find(v => v.id === (trip?.vehicle_id ?? route?.vehicle_id)) ?? null;
-    return { child, assignment, route, stop, trip, derived, vehicle };
-  }), [children, assignments, routes, stops, trips, vehicles, eventsByStudent]);
+
+    const todayKey = toDateKey(new Date());
+    const activeDirection = trip?.direction ?? assignment?.direction ?? null;
+    const todayAbsence = findActiveAbsence(absences, child.student_id, todayKey, activeDirection);
+    const upcoming = absences.filter(a =>
+      a.student_id === child.student_id && a.cancelled_at == null && a.deleted_at == null);
+
+    const eta = trip?.status === 'active' && !todayAbsence
+      ? estimateEta({
+          vehicle: trip.last_lat != null && trip.last_lng != null
+            ? { lat: trip.last_lat, lng: trip.last_lng } : null,
+          stop: stop?.lat != null && stop?.lng != null ? { lat: stop.lat, lng: stop.lng } : null,
+          lastLocationAt: trip.last_location_at,
+          lastSpeedMs: trip.last_speed,
+        })
+      : { available: false as const };
+
+    return { child, assignment, route, stop, trip, derived, vehicle, todayAbsence, upcoming, eta };
+  }), [children, assignments, routes, stops, trips, vehicles, eventsByStudent, absences]);
+
+  const openAbsenceForm = (child: ChildRow) => {
+    setAbsenceDate(toDateKey(new Date()));
+    setAbsenceDirection('both');
+    setAbsenceReason('');
+    setAbsenceForm({ child });
+  };
+
+  const submitAbsence = async () => {
+    if (!absenceForm || !user) return;
+    setSavingAbsence(true);
+    const { error } = await db.from('transport_absences').insert({
+      institution_id: absenceForm.child.institution_id,
+      student_id: absenceForm.child.student_id,
+      absence_date: absenceDate,
+      direction: absenceDirection,
+      reason: absenceReason.trim() || null,
+      created_by: user.id,
+    });
+    setSavingAbsence(false);
+    if (error) {
+      toast.error(error.code === '23505'
+        ? 'Bu tarih ve yön için zaten bir bildirim var.'
+        : 'Bildirim kaydedilemedi.');
+      return;
+    }
+    setAbsenceForm(null);
+    toast.success('Bildirim kaydedildi');
+    load();
+  };
+
+  const cancelAbsence = async (absence: TransportAbsence) => {
+    const { error } = await db.from('transport_absences')
+      .update({ cancelled_at: new Date().toISOString(), cancelled_by: user?.id ?? null })
+      .eq('id', absence.id);
+    if (error) { toast.error('Bildirim iptal edilemedi.'); return; }
+    toast.success('Bildirim iptal edildi');
+    load();
+  };
 
   if (loading) {
     return <div className="min-h-screen grid place-items-center text-muted-foreground">Yükleniyor...</div>;
@@ -303,7 +359,7 @@ export default function ParentPage() {
           </Card>
         )}
 
-        {cards.map(({ child, assignment, route, stop, trip, derived, vehicle }) => {
+        {cards.map(({ child, assignment, route, stop, trip, derived, vehicle, todayAbsence, upcoming, eta }) => {
           const hasLive = trip?.status === 'active' && trip.last_lat != null && trip.last_lng != null;
           const center: [number, number] = hasLive
             ? [trip!.last_lat as number, trip!.last_lng as number]
@@ -315,7 +371,9 @@ export default function ParentPage() {
               <CardHeader className="pb-2">
                 <CardTitle className="text-base flex items-start justify-between gap-2">
                   <span className="truncate">{child.first_name} {child.last_name}</span>
-                  <Badge variant={toneVariant[derived.tone]} className="shrink-0">{derived.label}</Badge>
+                  <Badge variant={todayAbsence ? 'outline' : toneVariant[derived.tone]} className="shrink-0">
+                    {todayAbsence ? 'Servis kullanmayacak' : derived.label}
+                  </Badge>
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -341,6 +399,47 @@ export default function ParentPage() {
                   <dt className="text-muted-foreground">Konum güncelliği</dt>
                   <dd className="text-right font-medium">{trip ? freshness(trip.last_location_at) : '-'}</dd>
                 </dl>
+
+                {eta.available && (
+                  <div className={`rounded-lg border p-3 text-xs flex items-start gap-2 ${eta.approaching ? 'border-primary bg-primary/5' : ''}`}>
+                    <Timer className="h-4 w-4 shrink-0 mt-0.5" />
+                    <div className="min-w-0">
+                      <p className="font-medium">
+                        {eta.approaching ? 'Servis yaklaşıyor' : 'Tahmini varış'} · {eta.label}
+                      </p>
+                      <p className="text-muted-foreground">
+                        Durağa {formatDistance(eta.distanceMeters!)} · {eta.usedGpsSpeed ? 'anlık hıza' : 'ortalama şehir içi hıza'} göre
+                        yaklaşık hesap. Trafik ve durak molaları dahil değildir.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                <div className="rounded-lg border p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-medium flex items-center gap-1.5">
+                      <CalendarOff className="h-3.5 w-3.5" />Servis kullanmama bildirimi
+                    </p>
+                    <Button size="sm" variant="outline" className="h-9 text-xs"
+                      onClick={() => openAbsenceForm(child)}>Bildir</Button>
+                  </div>
+                  {upcoming.length === 0 ? (
+                    <p className="text-[11px] text-muted-foreground">Aktif bildirim yok.</p>
+                  ) : upcoming.map(a => (
+                    <div key={a.id} className="flex items-center justify-between gap-2 rounded-md bg-muted/60 px-2 py-1.5">
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium truncate">
+                          {new Date(`${a.absence_date}T00:00:00`).toLocaleDateString('tr-TR')} · {ABSENCE_DIRECTION_LABELS[a.direction]}
+                        </p>
+                        {a.reason && <p className="text-[11px] text-muted-foreground truncate">{a.reason}</p>}
+                      </div>
+                      <Button size="sm" variant="ghost" className="h-9 px-2 text-xs shrink-0"
+                        onClick={() => cancelAbsence(a)}>
+                        <Undo2 className="h-3.5 w-3.5 mr-1" />İptal
+                      </Button>
+                    </div>
+                  ))}
+                </div>
 
                 {trip?.status === 'active' ? (
                   <div className="h-56 rounded-lg overflow-hidden border">
@@ -376,6 +475,48 @@ export default function ParentPage() {
             </Card>
           );
         })}
+
+        <FormModal
+          open={!!absenceForm}
+          onOpenChange={o => { if (!o) setAbsenceForm(null); }}
+          title="Servis kullanmayacağım"
+          description={absenceForm ? `${absenceForm.child.first_name} ${absenceForm.child.last_name} için bildirim oluşturun.` : undefined}
+        >
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="absence-date">Tarih</Label>
+              <Input
+                id="absence-date" type="date" className="min-h-11"
+                min={toDateKey(new Date())}
+                value={absenceDate}
+                onChange={e => setAbsenceDate(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Yön</Label>
+              <Select value={absenceDirection} onValueChange={v => setAbsenceDirection(v as TransportDirection)}>
+                <SelectTrigger className="min-h-11"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="both">{ABSENCE_DIRECTION_LABELS.both}</SelectItem>
+                  <SelectItem value="to_school">{ABSENCE_DIRECTION_LABELS.to_school}</SelectItem>
+                  <SelectItem value="to_home">{ABSENCE_DIRECTION_LABELS.to_home}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="absence-reason">Açıklama (opsiyonel)</Label>
+              <Input id="absence-reason" className="min-h-11" maxLength={200}
+                value={absenceReason} onChange={e => setAbsenceReason(e.target.value)}
+                placeholder="Örn: Doktor randevusu" />
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1 min-h-11" onClick={() => setAbsenceForm(null)}>Vazgeç</Button>
+              <Button className="flex-1 min-h-11" disabled={savingAbsence || !absenceDate} onClick={submitAbsence}>
+                Kaydet
+              </Button>
+            </div>
+          </div>
+        </FormModal>
 
         <p className="text-[11px] text-muted-foreground text-center px-2">
           Konum yalnızca aktif sefer sırasında ve şoför telefonunun ekranı açıkken güncellenir.
