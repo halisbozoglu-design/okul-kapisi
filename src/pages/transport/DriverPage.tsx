@@ -182,6 +182,40 @@ export default function DriverPage() {
       last_lat: s.lat, last_lng: s.lng, last_accuracy: s.accuracy,
       last_speed: s.speed, last_heading: s.heading, last_location_at: recordedAt,
     }).eq('id', t.id);
+
+    // Ask the server (security definer RPC, re-validates everything) to create
+    // "approaching" notifications. Candidates are filtered locally first so the
+    // RPC is called at most once per student per trip.
+    const candidates = selectApproachingCandidates({
+      tripId: t.id,
+      tripDirection: t.direction,
+      tripStatus: 'active',
+      vehicle: { lat: s.lat, lng: s.lng },
+      lastLocationAt: recordedAt,
+      lastSpeedMs: s.speed,
+      dateKey: toDateKey(new Date()),
+      absences: absencesRef.current,
+      alreadyRequested: approachRequestedRef.current,
+      settledStudentIds: new Set(Object.keys(statusesRef.current)),
+      students: assignmentsRef.current.map(a => {
+        const stop = a.stop_id ? stopsRef.current[a.stop_id] : null;
+        return {
+          studentId: a.student_id,
+          stop: stop && stop.lat != null && stop.lng != null
+            ? { lat: stop.lat, lng: stop.lng } : null,
+        };
+      }),
+    });
+    for (const c of candidates) {
+      approachRequestedRef.current.add(c.requestKey);
+      const { error: rpcError } = await db.rpc('notify_transport_approaching', {
+        _trip_id: t.id, _student_id: c.studentId,
+      });
+      if (rpcError) {
+        approachRequestedRef.current.delete(c.requestKey);
+        console.error('notify_transport_approaching failed', rpcError);
+      }
+    }
   }, []);
 
   const startSharing = useCallback(() => {
