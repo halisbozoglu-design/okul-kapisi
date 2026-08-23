@@ -813,6 +813,66 @@ export type Database = {
           },
         ]
       }
+      transport_absences: {
+        Row: {
+          absence_date: string
+          cancelled_at: string | null
+          cancelled_by: string | null
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          direction: Database["public"]["Enums"]["transport_direction"]
+          id: string
+          institution_id: string
+          reason: string | null
+          student_id: string
+          updated_at: string
+        }
+        Insert: {
+          absence_date: string
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          direction?: Database["public"]["Enums"]["transport_direction"]
+          id?: string
+          institution_id: string
+          reason?: string | null
+          student_id: string
+          updated_at?: string
+        }
+        Update: {
+          absence_date?: string
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          direction?: Database["public"]["Enums"]["transport_direction"]
+          id?: string
+          institution_id?: string
+          reason?: string | null
+          student_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transport_absences_institution_id_fkey"
+            columns: ["institution_id"]
+            isOneToOne: false
+            referencedRelation: "institutions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transport_absences_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       transport_events: {
         Row: {
           actor_user_id: string | null
@@ -1234,6 +1294,10 @@ export type Database = {
       }
       is_transport_staff_of_route: {
         Args: { _route_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_transport_staff_of_student: {
+        Args: { _student_id: string; _user_id: string }
         Returns: boolean
       }
       is_transport_staff_of_trip: {
