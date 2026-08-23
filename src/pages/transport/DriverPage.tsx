@@ -545,9 +545,12 @@ export default function DriverPage() {
                   <p className="font-medium">{routes.find(r => r.id === trip.route_id)?.name ?? 'Hat'}</p>
                   <p className="text-muted-foreground">{DIRECTION_LABELS[trip.direction]} · {new Date(trip.started_at).toLocaleTimeString('tr-TR')}</p>
                 </div>
-                <Button variant="destructive" className="w-full h-14 text-base" disabled={busy} onClick={endTrip}>
+                <Button variant="destructive" className="w-full h-14 text-base" disabled={busy} onClick={requestEndTrip}>
                   <Square className="mr-2 h-5 w-5" />Seferi Bitir
                 </Button>
+                <p className="text-[11px] text-muted-foreground">
+                  Sefer, araç son kontrolü onaylanmadan kapatılmaz.
+                </p>
               </>
             )}
           </CardContent>
