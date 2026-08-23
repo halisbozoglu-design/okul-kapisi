@@ -6,10 +6,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Bus, Route as RouteIcon, Users, Radio, Smartphone, FlaskConical } from 'lucide-react';
+import { Bus, Route as RouteIcon, Users, Radio, Smartphone, FlaskConical, CalendarOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { db } from '@/lib/db';
 import { useInstitution } from '@/hooks/useInstitution';
+import { ABSENCE_DIRECTION_LABELS, TransportAbsence, toDateKey } from '@/lib/transport/absences';
+
+interface AbsenceRow extends TransportAbsence {
+  students?: { first_name: string; last_name: string; student_no: string | null } | null;
+}
 
 interface Stats { vehicles: number; routes: number; students: number; activeTrips: number }
 
@@ -19,6 +24,7 @@ export default function TransportDashboardPage() {
   const [retention, setRetention] = useState('30');
   const [interval, setIntervalValue] = useState('8');
   const [seeding, setSeeding] = useState(false);
+  const [absences, setAbsences] = useState<AbsenceRow[]>([]);
 
   const loadStats = async () => {
     const count = async (table: string, filters: Record<string, string> = {}) => {
@@ -46,6 +52,17 @@ export default function TransportDashboardPage() {
       }
     };
     loadSettings();
+    const loadAbsences = async () => {
+      const { data } = await db.from('transport_absences')
+        .select('id, institution_id, student_id, absence_date, direction, reason, cancelled_at, deleted_at, created_at, students(first_name, last_name, student_no)')
+        .gte('absence_date', toDateKey(new Date()))
+        .is('cancelled_at', null)
+        .is('deleted_at', null)
+        .order('absence_date', { ascending: true })
+        .limit(50);
+      setAbsences((data || []) as AbsenceRow[]);
+    };
+    loadAbsences();
   }, [institutionId]);
 
   const saveSettings = async () => {
@@ -136,6 +153,32 @@ export default function TransportDashboardPage() {
           </Link>
         ))}
       </div>
+
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <CalendarOff className="h-4 w-4" />Servis Kullanmama Bildirimleri ({absences.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {absences.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Bugün ve sonrası için bildirim yok.</p>
+          ) : (
+            <div className="divide-y">
+              {absences.map(a => (
+                <div key={a.id} className="py-2 flex items-center justify-between gap-3 text-sm">
+                  <span className="truncate font-medium">
+                    {a.students ? `${a.students.first_name} ${a.students.last_name}` : 'Öğrenci'}
+                  </span>
+                  <span className="text-muted-foreground text-xs text-right shrink-0">
+                    {new Date(`${a.absence_date}T00:00:00`).toLocaleDateString('tr-TR')} · {ABSENCE_DIRECTION_LABELS[a.direction]}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 md:grid-cols-2 mt-6">
         <Card>
