@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { X, Share, Plus, Smartphone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import {
-  BeforeInstallPromptEvent,
+  clearDeferredInstallEvent,
+  getDeferredInstallEvent,
   isInstalledFlagSet,
   isIosDevice,
   isIosNonSafari,
@@ -12,6 +13,8 @@ import {
   markInstalled,
   readDismissedAt,
   shouldShowInstallPrompt,
+  subscribeInstallState,
+  wasAppInstalled,
   writeDismissedAt,
 } from '@/lib/pwa';
 
@@ -19,11 +22,12 @@ import {
  * Kompakt "Ana ekrana ekle" kurulum kartı.
  * Sadece mobil/tablet yüzeylerde, standalone değilken ve 7 günlük
  * reddetme penceresi dışında görünür.
+ * beforeinstallprompt event'i main.tsx'te global olarak yakalanır; burada
+ * yalnızca yakalanmış durum okunur (erken tetiklenen event kaçmaz).
  */
 export function PwaInstallPrompt() {
-  const deferredRef = useRef<BeforeInstallPromptEvent | null>(null);
-  const [canPrompt, setCanPrompt] = useState(false);
-  const [installed, setInstalled] = useState(() => isInstalledFlagSet());
+  const [canPrompt, setCanPrompt] = useState(() => getDeferredInstallEvent() !== null);
+  const [installed, setInstalled] = useState(() => isInstalledFlagSet() || wasAppInstalled());
   const [dismissedAt, setDismissedAt] = useState<string | null>(() => readDismissedAt());
   const [showIosHelp, setShowIosHelp] = useState(false);
 
@@ -33,23 +37,12 @@ export function PwaInstallPrompt() {
   const iosNonSafari = ios && isIosNonSafari(ua);
 
   useEffect(() => {
-    const onBeforeInstall = (e: Event) => {
-      e.preventDefault();
-      deferredRef.current = e as BeforeInstallPromptEvent;
-      setCanPrompt(true);
+    const sync = () => {
+      setCanPrompt(getDeferredInstallEvent() !== null);
+      if (wasAppInstalled() || isInstalledFlagSet()) setInstalled(true);
     };
-    const onInstalled = () => {
-      markInstalled();
-      setInstalled(true);
-      deferredRef.current = null;
-      setCanPrompt(false);
-    };
-    window.addEventListener('beforeinstallprompt', onBeforeInstall);
-    window.addEventListener('appinstalled', onInstalled);
-    return () => {
-      window.removeEventListener('beforeinstallprompt', onBeforeInstall);
-      window.removeEventListener('appinstalled', onInstalled);
-    };
+    sync();
+    return subscribeInstallState(sync);
   }, []);
 
   const handleDismiss = useCallback(() => {
@@ -59,7 +52,7 @@ export function PwaInstallPrompt() {
   }, []);
 
   const handleInstall = useCallback(async () => {
-    const evt = deferredRef.current;
+    const evt = getDeferredInstallEvent();
     if (!evt) return;
     try {
       await evt.prompt();
@@ -73,10 +66,11 @@ export function PwaInstallPrompt() {
     } catch {
       /* kullanıcı prompt'u iptal etti */
     } finally {
-      deferredRef.current = null;
+      clearDeferredInstallEvent();
       setCanPrompt(false);
     }
   }, [handleDismiss]);
+
 
   const visible = shouldShowInstallPrompt({
     standalone: isStandaloneDisplay(),
