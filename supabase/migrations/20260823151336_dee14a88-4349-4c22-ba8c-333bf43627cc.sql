@@ -1,0 +1,16 @@
+REVOKE EXECUTE ON FUNCTION public.has_role(uuid, public.app_role) FROM anon, public;
+REVOKE EXECUTE ON FUNCTION public.has_any_role(uuid) FROM anon, public;
+REVOKE EXECUTE ON FUNCTION public.is_admin(uuid) FROM anon, public;
+REVOKE EXECUTE ON FUNCTION public.get_user_roles(uuid) FROM anon, public;
+REVOKE EXECUTE ON FUNCTION public.can_manage_institution(uuid, uuid) FROM anon, public;
+REVOKE EXECUTE ON FUNCTION public.is_transport_staff_of_route(uuid, uuid) FROM anon, public;
+REVOKE EXECUTE ON FUNCTION public.is_transport_staff_of_trip(uuid, uuid) FROM anon, public;
+REVOKE EXECUTE ON FUNCTION public.my_transport_staff_id(uuid) FROM anon, public;
+GRANT EXECUTE ON FUNCTION public.has_role(uuid, public.app_role) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.has_any_role(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.is_admin(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_user_roles(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.can_manage_institution(uuid, uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.is_transport_staff_of_route(uuid, uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.is_transport_staff_of_trip(uuid, uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.my_transport_staff_id(uuid) TO authenticated;

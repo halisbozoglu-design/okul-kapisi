@@ -25,9 +25,19 @@ import ClassroomsPage from "./pages/settings/ClassroomsPage";
 import BranchesPage from "./pages/settings/BranchesPage";
 import NotFound from "./pages/NotFound";
 
+import TransportDashboardPage from "./pages/transport/TransportDashboardPage";
+import VehiclesPage from "./pages/transport/VehiclesPage";
+import TransportStaffPage from "./pages/transport/TransportStaffPage";
+import RoutesPage from "./pages/transport/RoutesPage";
+import StudentAssignmentsPage from "./pages/transport/StudentAssignmentsPage";
+import LiveTrackingPage from "./pages/transport/LiveTrackingPage";
+import TripsPage from "./pages/transport/TripsPage";
+import DriverPage from "./pages/transport/DriverPage";
+
 const queryClient = new QueryClient();
 
 const ADMIN_ROLES = ['super_admin', 'kurum_yoneticisi', 'okul_yoneticisi'] as const;
+const TRANSPORT_ROLES = ['super_admin', 'kurum_yoneticisi', 'okul_yoneticisi', 'mudur_yardimcisi'] as const;
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -59,6 +69,16 @@ const App = () => (
             <Route path="/settings/sections" element={<ProtectedRoute requiredRoles={[...ADMIN_ROLES]}><SectionsPage /></ProtectedRoute>} />
             <Route path="/settings/classrooms" element={<ProtectedRoute requiredRoles={[...ADMIN_ROLES]}><ClassroomsPage /></ProtectedRoute>} />
             <Route path="/settings/branches" element={<ProtectedRoute requiredRoles={[...ADMIN_ROLES]}><BranchesPage /></ProtectedRoute>} />
+
+            {/* Transport module */}
+            <Route path="/transport" element={<ProtectedRoute requiredRoles={[...TRANSPORT_ROLES]}><TransportDashboardPage /></ProtectedRoute>} />
+            <Route path="/transport/vehicles" element={<ProtectedRoute requiredRoles={[...TRANSPORT_ROLES]}><VehiclesPage /></ProtectedRoute>} />
+            <Route path="/transport/staff" element={<ProtectedRoute requiredRoles={[...TRANSPORT_ROLES]}><TransportStaffPage /></ProtectedRoute>} />
+            <Route path="/transport/routes" element={<ProtectedRoute requiredRoles={[...TRANSPORT_ROLES]}><RoutesPage /></ProtectedRoute>} />
+            <Route path="/transport/students" element={<ProtectedRoute requiredRoles={[...TRANSPORT_ROLES]}><StudentAssignmentsPage /></ProtectedRoute>} />
+            <Route path="/transport/live" element={<ProtectedRoute requiredRoles={[...TRANSPORT_ROLES]}><LiveTrackingPage /></ProtectedRoute>} />
+            <Route path="/transport/trips" element={<ProtectedRoute requiredRoles={[...TRANSPORT_ROLES]}><TripsPage /></ProtectedRoute>} />
+            <Route path="/transport/driver" element={<ProtectedRoute><DriverPage /></ProtectedRoute>} />
 
             <Route path="*" element={<NotFound />} />
           </Routes>
