@@ -35,10 +35,18 @@ import TripsPage from "./pages/transport/TripsPage";
 import DriverPage from "./pages/transport/DriverPage";
 import ParentPage from "./pages/transport/ParentPage";
 
+import SecurityCheckInPage from "./pages/security/SecurityCheckInPage";
+import VisitorsInsidePage from "./pages/security/VisitorsInsidePage";
+import VisitorLedgerPage from "./pages/security/VisitorLedgerPage";
+import SecurityLocationsPage from "./pages/security/SecurityLocationsPage";
+import StudentDutyPage from "./pages/security/StudentDutyPage";
+
 const queryClient = new QueryClient();
 
 const ADMIN_ROLES = ['super_admin', 'kurum_yoneticisi', 'okul_yoneticisi'] as const;
 const TRANSPORT_ROLES = ['super_admin', 'kurum_yoneticisi', 'okul_yoneticisi', 'mudur_yardimcisi'] as const;
+const SECURITY_OPERATORS = ['super_admin', 'kurum_yoneticisi', 'okul_yoneticisi', 'mudur_yardimcisi', 'personel'] as const;
+const SECURITY_MANAGERS = ['super_admin', 'kurum_yoneticisi', 'okul_yoneticisi', 'mudur_yardimcisi'] as const;
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
