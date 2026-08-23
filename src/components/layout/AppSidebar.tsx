@@ -113,6 +113,7 @@ export function AppSidebar() {
   const visibleMain = filterByRole(mainItems);
   const visibleSettings = filterByRole(settingsItems);
   const visibleTransport = filterByRole(transportItems);
+  const visibleSecurity = filterByRole(securityItems);
   const visibleAdmin = filterByRole(adminItems);
 
   return (
