@@ -78,8 +78,12 @@ export default function DriverPage() {
   }, [user]);
 
   const loadStudents = useCallback(async (activeTrip: TransportTrip) => {
+    // Explicit columns only — no national_id / guardian_phone or other sensitive fields.
     const { data } = await db.from('student_transport_assignments')
-      .select('*, students(*)').eq('route_id', activeTrip.route_id).is('deleted_at', null);
+      .select('id, student_id, route_id, stop_id, direction, students(id, first_name, last_name, student_no)')
+      .eq('route_id', activeTrip.route_id)
+      .eq('is_active', true)
+      .is('deleted_at', null);
     const rows = ((data || []) as AssignmentRow[])
       .filter(a => a.direction === 'both' || a.direction === activeTrip.direction);
     setAssignments(rows);
