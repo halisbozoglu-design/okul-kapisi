@@ -100,6 +100,7 @@ export default function ParentPage() {
   const [trips, setTrips] = useState<TripRow[]>([]);
   const [events, setEvents] = useState<EventRow[]>([]);
   const [absences, setAbsences] = useState<TransportAbsence[]>([]);
+  const [notifications, setNotifications] = useState<TransportNotification[]>([]);
   const [absenceForm, setAbsenceForm] = useState<{ child: ChildRow } | null>(null);
   const [absenceDate, setAbsenceDate] = useState(toDateKey(new Date()));
   const [absenceDirection, setAbsenceDirection] = useState<TransportDirection>('both');
