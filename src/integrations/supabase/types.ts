@@ -399,6 +399,8 @@ export type Database = {
           name: string
           order_index: number
           planned_time: string | null
+          planned_to_home: string | null
+          planned_to_school: string | null
           route_id: string
           updated_at: string
         }
@@ -413,6 +415,8 @@ export type Database = {
           name: string
           order_index?: number
           planned_time?: string | null
+          planned_to_home?: string | null
+          planned_to_school?: string | null
           route_id: string
           updated_at?: string
         }
@@ -427,6 +431,8 @@ export type Database = {
           name?: string
           order_index?: number
           planned_time?: string | null
+          planned_to_home?: string | null
+          planned_to_school?: string | null
           route_id?: string
           updated_at?: string
         }
