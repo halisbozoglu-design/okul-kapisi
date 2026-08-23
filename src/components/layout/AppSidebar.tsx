@@ -11,6 +11,13 @@ import {
   DoorOpen,
   GitBranch,
   Shield,
+  Bus,
+  Route as RouteIcon,
+  IdCard,
+  Radio,
+  History,
+  UserSquare2,
+  Smartphone,
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useLocation } from 'react-router-dom';
