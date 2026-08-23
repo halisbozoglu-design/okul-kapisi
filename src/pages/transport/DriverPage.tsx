@@ -137,7 +137,10 @@ export default function DriverPage() {
     }
   }, []);
 
-  useEffect(() => { if (trip) loadStudents(trip); }, [trip?.id, loadStudents]); // eslint-disable-line
+  useEffect(() => {
+    approachRequestedRef.current = new Set();
+    if (trip) loadStudents(trip);
+  }, [trip?.id, loadStudents]); // eslint-disable-line
 
   const logEvent = async (
     type: TransportEventType,
