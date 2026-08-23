@@ -94,7 +94,10 @@ function mapEvent(
     case 'NO_SHOW':
       return 'no_show';
     case 'DISEMBARK':
-      return direction === 'to_school' || direction === 'to_home' ? 'dropped_off' : 'dropped_off';
+      // Direction is informational here: dropping off means arrival at school
+      // (to_school) or at the stop/home (to_home); both end the journey.
+      void direction;
+      return 'dropped_off';
     default:
       return 'waiting';
   }
