@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Bus, MapPin, Play, Square, Satellite, LogOut, Check, X, ArrowDownToLine } from 'lucide-react';
+import { Bus, MapPin, Play, Square, Satellite, LogOut, Check, X, ArrowDownToLine, Wifi, WifiOff, CloudUpload } from 'lucide-react';
 import { toast } from 'sonner';
 import { db } from '@/lib/db';
 import { useAuth } from '@/hooks/useAuth';
@@ -18,10 +18,13 @@ import {
 } from '@/types/transport';
 import { TransportAbsence, findActiveAbsence, toDateKey } from '@/lib/transport/absences';
 import { selectApproachingCandidates } from '@/lib/transport/notifications';
+import { LocationQueue, QueuedPing } from '@/lib/transport/locationQueue';
 
 const MIN_INTERVAL_MS = 8000;
 const MIN_DISTANCE_M = 20;
 const FORCE_INTERVAL_MS = 30000;
+const FLUSH_INTERVAL_MS = 20000;
+
 
 /** Minimal, non-sensitive student projection used on the driver roll-call screen. */
 type RollCallStudent = Pick<Student, 'id' | 'first_name' | 'last_name' | 'student_no'>;
