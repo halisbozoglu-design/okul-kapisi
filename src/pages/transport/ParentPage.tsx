@@ -238,6 +238,15 @@ export default function ParentPage() {
         const row = (payload.new ?? payload.old) as { route_id?: string | null } | null;
         if (!row?.route_id || routeIds.has(row.route_id)) schedule();
       })
+      // Notifications can be filtered safely: rows are keyed by guardian_user_id.
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'transport_notifications',
+        filter: `guardian_user_id=eq.${user.id}`,
+      }, payload => {
+        const row = payload.new as TransportNotification;
+        setNotifications(prev =>
+          prev.some(n => n.id === row.id) ? prev : [row, ...prev].slice(0, 30));
+      })
       .subscribe();
     return () => {
       if (timer) clearTimeout(timer);
