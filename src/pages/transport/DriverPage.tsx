@@ -19,6 +19,11 @@ import {
 import { TransportAbsence, findActiveAbsence, toDateKey } from '@/lib/transport/absences';
 import { selectApproachingCandidates } from '@/lib/transport/notifications';
 import { LocationQueue, QueuedPing } from '@/lib/transport/locationQueue';
+import { deriveOnboardStudentIds, OnboardEventLike } from '@/lib/transport/onboard';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
 
 const MIN_INTERVAL_MS = 8000;
 const MIN_DISTANCE_M = 20;
@@ -51,6 +56,9 @@ export default function DriverPage() {
   const [geoError, setGeoError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [checkOpen, setCheckOpen] = useState(false);
+  const [pendingStudentIds, setPendingStudentIds] = useState<string[]>([]);
+  const [finalCheckConfirmed, setFinalCheckConfirmed] = useState(false);
   const [online, setOnline] = useState(typeof navigator === 'undefined' ? true : navigator.onLine);
   const [pendingCount, setPendingCount] = useState(0);
   const [lastSyncAt, setLastSyncAt] = useState<number | null>(null);
