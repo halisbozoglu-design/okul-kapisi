@@ -1,6 +1,7 @@
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { AppRole } from '@/types/auth';
+import { PwaInstallPrompt } from '@/components/common/PwaInstallPrompt';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -37,5 +38,10 @@ export function ProtectedRoute({ children, requiredRoles }: ProtectedRouteProps)
     }
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+      <PwaInstallPrompt />
+    </>
+  );
 }
