@@ -8,10 +8,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Trash2, Users } from 'lucide-react';
+import { Plus, Trash2, Users, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { db } from '@/lib/db';
 import { useTransportCrud } from '@/hooks/useTransportCrud';
+import { useInstitution } from '@/hooks/useInstitution';
 import {
   Route as RouteType, RouteStop, Student, StudentAssignment,
   DIRECTION_LABELS, TransportDirection,
@@ -23,7 +24,11 @@ interface AssignmentRow extends StudentAssignment {
   students?: Student | null;
 }
 
+interface GuardianProfile { user_id: string; first_name: string | null; last_name: string | null }
+interface GuardianLink { id: string; user_id: string; relation: string | null }
+
 export default function StudentAssignmentsPage() {
+  const { institutionId } = useInstitution();
   const students = useTransportCrud<Student>('students', { orderBy: 'first_name', ascending: true });
   const routes = useTransportCrud<RouteType>('routes', { orderBy: 'name', ascending: true });
 
@@ -36,6 +41,44 @@ export default function StudentAssignmentsPage() {
   const [selected, setSelected] = useState<string[]>([]);
   const [assignForm, setAssignForm] = useState({ route_id: '', stop_id: NONE, direction: 'both' as TransportDirection });
   const [studentForm, setStudentForm] = useState({ first_name: '', last_name: '', student_no: '', guardian_name: '', guardian_phone: '' });
+
+  const [guardianFor, setGuardianFor] = useState<AssignmentRow | null>(null);
+  const [profiles, setProfiles] = useState<GuardianProfile[]>([]);
+  const [links, setLinks] = useState<GuardianLink[]>([]);
+  const [guardianForm, setGuardianForm] = useState({ user_id: '', relation: '' });
+
+  const openGuardian = async (a: AssignmentRow) => {
+    setGuardianFor(a);
+    setGuardianForm({ user_id: '', relation: '' });
+    const [{ data: pr }, { data: lk }] = await Promise.all([
+      db.from('profiles').select('user_id, first_name, last_name').eq('is_active', true).is('deleted_at', null).order('first_name'),
+      db.from('student_guardians').select('id, user_id, relation').eq('student_id', a.student_id).is('deleted_at', null),
+    ]);
+    setProfiles((pr || []) as GuardianProfile[]);
+    setLinks((lk || []) as GuardianLink[]);
+  };
+
+  const submitGuardian = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!guardianFor || !guardianForm.user_id) return;
+    if (!institutionId) { toast.error('Kurum bilgisi bulunamadı'); return; }
+    const { error } = await db.from('student_guardians').insert({
+      institution_id: institutionId,
+      student_id: guardianFor.student_id,
+      user_id: guardianForm.user_id,
+      relation: guardianForm.relation || null,
+    });
+    if (error) { toast.error(error.message); return; }
+    toast.success('Veli bağlandı');
+    openGuardian(guardianFor);
+  };
+
+  const removeGuardian = async (id: string) => {
+    const { error } = await db.from('student_guardians')
+      .update({ deleted_at: new Date().toISOString(), is_active: false }).eq('id', id);
+    if (error) { toast.error(error.message); return; }
+    setLinks(prev => prev.filter(l => l.id !== id));
+  };
 
   const loadAssignments = async () => {
     let q = db.from('student_transport_assignments')
@@ -127,11 +170,62 @@ export default function StudentAssignmentsPage() {
         <DataTable columns={columns} data={filtered} searchValue={search} onSearchChange={setSearch} searchPlaceholder="Öğrenci ara..."
           emptyTitle="Atama bulunamadı"
           actions={a => (
-            <Button variant="ghost" size="icon" className="h-11 w-11" onClick={() => removeAssignment(a.id)}>
-              <Trash2 className="h-4 w-4 text-destructive" />
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="icon" className="h-11 w-11" title="Veli bağla" onClick={() => openGuardian(a)}>
+                <UserPlus className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-11 w-11" onClick={() => removeAssignment(a.id)}>
+                <Trash2 className="h-4 w-4 text-destructive" />
+              </Button>
+            </div>
           )} />
       </div>
+
+      <FormModal open={!!guardianFor} onOpenChange={o => !o && setGuardianFor(null)} title="Veli Bağlantısı"
+        description="Bağlı veli, öğrencisinin servis durumunu ve aktif seferin konumunu görebilir.">
+        <div className="space-y-4">
+          <div className="space-y-2">
+            {links.length === 0 && <p className="text-sm text-muted-foreground">Bağlı veli yok.</p>}
+            {links.map(l => {
+              const p = profiles.find(x => x.user_id === l.user_id);
+              return (
+                <div key={l.id} className="flex items-center justify-between gap-2 rounded-md border p-2">
+                  <span className="text-sm truncate">
+                    {p ? `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() || 'Kullanıcı' : 'Kullanıcı'}
+                    {l.relation ? ` · ${l.relation}` : ''}
+                  </span>
+                  <Button variant="ghost" size="icon" className="h-11 w-11" onClick={() => removeGuardian(l.id)}>
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+          <form onSubmit={submitGuardian} className="space-y-4">
+            <div className="space-y-2">
+              <Label>Veli Kullanıcısı *</Label>
+              <Select value={guardianForm.user_id} onValueChange={v => setGuardianForm({ ...guardianForm, user_id: v })}>
+                <SelectTrigger className="min-h-11"><SelectValue placeholder="Kullanıcı seçin" /></SelectTrigger>
+                <SelectContent>
+                  {profiles.filter(p => !links.some(l => l.user_id === p.user_id)).map(p => (
+                    <SelectItem key={p.user_id} value={p.user_id}>
+                      {`${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() || p.user_id.slice(0, 8)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Yakınlık</Label>
+              <Input value={guardianForm.relation} onChange={e => setGuardianForm({ ...guardianForm, relation: e.target.value })} placeholder="Anne / Baba / Vasi" />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setGuardianFor(null)}>Kapat</Button>
+              <Button type="submit" disabled={!guardianForm.user_id}>Bağla</Button>
+            </div>
+          </form>
+        </div>
+      </FormModal>
 
       <FormModal open={studentOpen} onOpenChange={setStudentOpen} title="Yeni Öğrenci"
         description="Kimlik numarası bu ekranda tutulmaz; hassas alanlar ayrı korumalı alanda saklanır.">

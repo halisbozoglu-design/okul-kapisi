@@ -33,6 +33,7 @@ import StudentAssignmentsPage from "./pages/transport/StudentAssignmentsPage";
 import LiveTrackingPage from "./pages/transport/LiveTrackingPage";
 import TripsPage from "./pages/transport/TripsPage";
 import DriverPage from "./pages/transport/DriverPage";
+import ParentPage from "./pages/transport/ParentPage";
 
 const queryClient = new QueryClient();
 
@@ -79,6 +80,7 @@ const App = () => (
             <Route path="/transport/live" element={<ProtectedRoute requiredRoles={[...TRANSPORT_ROLES]}><LiveTrackingPage /></ProtectedRoute>} />
             <Route path="/transport/trips" element={<ProtectedRoute requiredRoles={[...TRANSPORT_ROLES]}><TripsPage /></ProtectedRoute>} />
             <Route path="/transport/driver" element={<ProtectedRoute><DriverPage /></ProtectedRoute>} />
+            <Route path="/transport/parent" element={<ProtectedRoute requiredRoles={['veli', 'super_admin', 'kurum_yoneticisi', 'okul_yoneticisi']}><ParentPage /></ProtectedRoute>} />
 
             <Route path="*" element={<NotFound />} />
           </Routes>

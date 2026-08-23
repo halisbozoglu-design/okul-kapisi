@@ -76,6 +76,10 @@ const transportItems: NavItem[] = [
     title: 'Şoför Ekranı', url: '/transport/driver', icon: Smartphone,
     roles: [...TRANSPORT_MANAGERS, 'ogretmen', 'personel'],
   },
+  {
+    title: 'Veli Servis Takibi', url: '/transport/parent', icon: UserSquare2,
+    roles: [...TRANSPORT_MANAGERS, 'veli'],
+  },
 ];
 
 const adminItems: NavItem[] = [
