@@ -18,6 +18,9 @@ import {
   History,
   UserSquare2,
   Smartphone,
+  ScanFace,
+  ClipboardList,
+  ShieldCheck,
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useLocation } from 'react-router-dom';
