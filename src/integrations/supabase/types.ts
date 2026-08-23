@@ -543,6 +543,47 @@ export type Database = {
           },
         ]
       }
+      school_calendar_days: {
+        Row: {
+          created_at: string
+          date: string
+          id: string
+          institution_id: string
+          is_school_day: boolean
+          title: string | null
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          id?: string
+          institution_id: string
+          is_school_day?: boolean
+          title?: string | null
+          type?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          id?: string
+          institution_id?: string
+          is_school_day?: boolean
+          title?: string | null
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "school_calendar_days_institution_id_fkey"
+            columns: ["institution_id"]
+            isOneToOne: false
+            referencedRelation: "institutions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sections: {
         Row: {
           capacity: number | null
@@ -580,6 +621,324 @@ export type Database = {
             columns: ["grade_level_id"]
             isOneToOne: false
             referencedRelation: "grade_levels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      security_locations: {
+        Row: {
+          campus_id: string | null
+          capacity: number | null
+          code: string | null
+          created_at: string
+          deleted_at: string | null
+          gender_rule: string
+          id: string
+          institution_id: string
+          is_active: boolean
+          kind: string
+          name: string
+          student_duty_enabled: boolean
+          updated_at: string
+          visitor_entry_enabled: boolean
+        }
+        Insert: {
+          campus_id?: string | null
+          capacity?: number | null
+          code?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          gender_rule?: string
+          id?: string
+          institution_id: string
+          is_active?: boolean
+          kind?: string
+          name: string
+          student_duty_enabled?: boolean
+          updated_at?: string
+          visitor_entry_enabled?: boolean
+        }
+        Update: {
+          campus_id?: string | null
+          capacity?: number | null
+          code?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          gender_rule?: string
+          id?: string
+          institution_id?: string
+          is_active?: boolean
+          kind?: string
+          name?: string
+          student_duty_enabled?: boolean
+          updated_at?: string
+          visitor_entry_enabled?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "security_locations_campus_id_fkey"
+            columns: ["campus_id"]
+            isOneToOne: false
+            referencedRelation: "campuses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "security_locations_institution_id_fkey"
+            columns: ["institution_id"]
+            isOneToOne: false
+            referencedRelation: "institutions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      student_duty_assignments: {
+        Row: {
+          academic_year_id: string | null
+          checked_at: string | null
+          checked_by_profile_id: string | null
+          created_at: string
+          duty_date: string
+          id: string
+          institution_id: string
+          location_id: string
+          responsible_teacher_profile_id: string | null
+          responsible_vp_profile_id: string | null
+          status: string
+          student_id: string
+          updated_at: string
+        }
+        Insert: {
+          academic_year_id?: string | null
+          checked_at?: string | null
+          checked_by_profile_id?: string | null
+          created_at?: string
+          duty_date: string
+          id?: string
+          institution_id: string
+          location_id: string
+          responsible_teacher_profile_id?: string | null
+          responsible_vp_profile_id?: string | null
+          status?: string
+          student_id: string
+          updated_at?: string
+        }
+        Update: {
+          academic_year_id?: string | null
+          checked_at?: string | null
+          checked_by_profile_id?: string | null
+          created_at?: string
+          duty_date?: string
+          id?: string
+          institution_id?: string
+          location_id?: string
+          responsible_teacher_profile_id?: string | null
+          responsible_vp_profile_id?: string | null
+          status?: string
+          student_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_duty_assignments_academic_year_id_fkey"
+            columns: ["academic_year_id"]
+            isOneToOne: false
+            referencedRelation: "academic_years"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_duty_assignments_checked_by_profile_id_fkey"
+            columns: ["checked_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_duty_assignments_institution_id_fkey"
+            columns: ["institution_id"]
+            isOneToOne: false
+            referencedRelation: "institutions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_duty_assignments_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "security_locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_duty_assignments_responsible_teacher_profile_id_fkey"
+            columns: ["responsible_teacher_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_duty_assignments_responsible_vp_profile_id_fkey"
+            columns: ["responsible_vp_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_duty_assignments_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      student_duty_exemptions: {
+        Row: {
+          created_at: string
+          end_date: string | null
+          id: string
+          institution_id: string
+          is_active: boolean
+          reason: string | null
+          start_date: string
+          student_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          institution_id: string
+          is_active?: boolean
+          reason?: string | null
+          start_date: string
+          student_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          institution_id?: string
+          is_active?: boolean
+          reason?: string | null
+          start_date?: string
+          student_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_duty_exemptions_institution_id_fkey"
+            columns: ["institution_id"]
+            isOneToOne: false
+            referencedRelation: "institutions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_duty_exemptions_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      student_duty_generation_state: {
+        Row: {
+          academic_year_id: string
+          cursor_student_id: string | null
+          id: string
+          institution_id: string
+          last_generated_date: string | null
+          updated_at: string
+        }
+        Insert: {
+          academic_year_id: string
+          cursor_student_id?: string | null
+          id?: string
+          institution_id: string
+          last_generated_date?: string | null
+          updated_at?: string
+        }
+        Update: {
+          academic_year_id?: string
+          cursor_student_id?: string | null
+          id?: string
+          institution_id?: string
+          last_generated_date?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_duty_generation_state_academic_year_id_fkey"
+            columns: ["academic_year_id"]
+            isOneToOne: false
+            referencedRelation: "academic_years"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_duty_generation_state_cursor_student_id_fkey"
+            columns: ["cursor_student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_duty_generation_state_institution_id_fkey"
+            columns: ["institution_id"]
+            isOneToOne: false
+            referencedRelation: "institutions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      student_duty_settings: {
+        Row: {
+          academic_year_id: string
+          created_at: string
+          default_students_per_location: number
+          eligible_grade_level_ids: Json
+          eligible_section_ids: Json
+          fairness_enabled: boolean
+          generation_mode: string
+          id: string
+          institution_id: string
+          updated_at: string
+        }
+        Insert: {
+          academic_year_id: string
+          created_at?: string
+          default_students_per_location?: number
+          eligible_grade_level_ids?: Json
+          eligible_section_ids?: Json
+          fairness_enabled?: boolean
+          generation_mode?: string
+          id?: string
+          institution_id: string
+          updated_at?: string
+        }
+        Update: {
+          academic_year_id?: string
+          created_at?: string
+          default_students_per_location?: number
+          eligible_grade_level_ids?: Json
+          eligible_section_ids?: Json
+          fairness_enabled?: boolean
+          generation_mode?: string
+          id?: string
+          institution_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_duty_settings_academic_year_id_fkey"
+            columns: ["academic_year_id"]
+            isOneToOne: false
+            referencedRelation: "academic_years"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_duty_settings_institution_id_fkey"
+            columns: ["institution_id"]
+            isOneToOne: false
+            referencedRelation: "institutions"
             referencedColumns: ["id"]
           },
         ]
@@ -1338,12 +1697,282 @@ export type Database = {
           },
         ]
       }
+      visitor_access_restrictions: {
+        Row: {
+          created_at: string
+          decision: string
+          ends_at: string | null
+          id: string
+          institution_id: string
+          is_active: boolean
+          legal_basis_note: string | null
+          legal_basis_type: string | null
+          related_student_id: string | null
+          restriction_type: string
+          starts_at: string
+          updated_at: string
+          visitor_person_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          decision: string
+          ends_at?: string | null
+          id?: string
+          institution_id: string
+          is_active?: boolean
+          legal_basis_note?: string | null
+          legal_basis_type?: string | null
+          related_student_id?: string | null
+          restriction_type: string
+          starts_at?: string
+          updated_at?: string
+          visitor_person_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          decision?: string
+          ends_at?: string | null
+          id?: string
+          institution_id?: string
+          is_active?: boolean
+          legal_basis_note?: string | null
+          legal_basis_type?: string | null
+          related_student_id?: string | null
+          restriction_type?: string
+          starts_at?: string
+          updated_at?: string
+          visitor_person_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "visitor_access_restrictions_institution_id_fkey"
+            columns: ["institution_id"]
+            isOneToOne: false
+            referencedRelation: "institutions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visitor_access_restrictions_related_student_id_fkey"
+            columns: ["related_student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visitor_access_restrictions_visitor_person_id_fkey"
+            columns: ["visitor_person_id"]
+            isOneToOne: false
+            referencedRelation: "visitor_people"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      visitor_people: {
+        Row: {
+          created_at: string
+          full_name: string
+          guardian_id: string | null
+          id: string
+          institution_id: string
+          phone: string | null
+          source: string
+          tc_hash: string | null
+          tc_last4: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          full_name: string
+          guardian_id?: string | null
+          id?: string
+          institution_id: string
+          phone?: string | null
+          source?: string
+          tc_hash?: string | null
+          tc_last4?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          full_name?: string
+          guardian_id?: string | null
+          id?: string
+          institution_id?: string
+          phone?: string | null
+          source?: string
+          tc_hash?: string | null
+          tc_last4?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "visitor_people_guardian_id_fkey"
+            columns: ["guardian_id"]
+            isOneToOne: false
+            referencedRelation: "student_guardians"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visitor_people_institution_id_fkey"
+            columns: ["institution_id"]
+            isOneToOne: false
+            referencedRelation: "institutions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      visitor_visits: {
+        Row: {
+          cancellation_reason: string | null
+          created_at: string
+          entered_by_profile_id: string | null
+          entry_at: string
+          entry_location_id: string | null
+          exit_at: string | null
+          exit_location_id: string | null
+          exited_by_profile_id: string | null
+          id: string
+          identity_method: string | null
+          identity_verified_at: string | null
+          identity_verified_by_profile_id: string | null
+          institution_id: string
+          person_to_meet_profile_id: string | null
+          person_to_meet_text: string | null
+          phone_used: string | null
+          physical_id_seen: boolean
+          related_student_id: string | null
+          status: string
+          updated_at: string
+          visit_reason: string | null
+          visitor_card_no: string | null
+          visitor_person_id: string
+        }
+        Insert: {
+          cancellation_reason?: string | null
+          created_at?: string
+          entered_by_profile_id?: string | null
+          entry_at?: string
+          entry_location_id?: string | null
+          exit_at?: string | null
+          exit_location_id?: string | null
+          exited_by_profile_id?: string | null
+          id?: string
+          identity_method?: string | null
+          identity_verified_at?: string | null
+          identity_verified_by_profile_id?: string | null
+          institution_id: string
+          person_to_meet_profile_id?: string | null
+          person_to_meet_text?: string | null
+          phone_used?: string | null
+          physical_id_seen?: boolean
+          related_student_id?: string | null
+          status?: string
+          updated_at?: string
+          visit_reason?: string | null
+          visitor_card_no?: string | null
+          visitor_person_id: string
+        }
+        Update: {
+          cancellation_reason?: string | null
+          created_at?: string
+          entered_by_profile_id?: string | null
+          entry_at?: string
+          entry_location_id?: string | null
+          exit_at?: string | null
+          exit_location_id?: string | null
+          exited_by_profile_id?: string | null
+          id?: string
+          identity_method?: string | null
+          identity_verified_at?: string | null
+          identity_verified_by_profile_id?: string | null
+          institution_id?: string
+          person_to_meet_profile_id?: string | null
+          person_to_meet_text?: string | null
+          phone_used?: string | null
+          physical_id_seen?: boolean
+          related_student_id?: string | null
+          status?: string
+          updated_at?: string
+          visit_reason?: string | null
+          visitor_card_no?: string | null
+          visitor_person_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "visitor_visits_entered_by_profile_id_fkey"
+            columns: ["entered_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visitor_visits_entry_location_id_fkey"
+            columns: ["entry_location_id"]
+            isOneToOne: false
+            referencedRelation: "security_locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visitor_visits_exit_location_id_fkey"
+            columns: ["exit_location_id"]
+            isOneToOne: false
+            referencedRelation: "security_locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visitor_visits_exited_by_profile_id_fkey"
+            columns: ["exited_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visitor_visits_identity_verified_by_profile_id_fkey"
+            columns: ["identity_verified_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visitor_visits_institution_id_fkey"
+            columns: ["institution_id"]
+            isOneToOne: false
+            referencedRelation: "institutions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visitor_visits_person_to_meet_profile_id_fkey"
+            columns: ["person_to_meet_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visitor_visits_related_student_id_fkey"
+            columns: ["related_student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visitor_visits_visitor_person_id_fkey"
+            columns: ["visitor_person_id"]
+            isOneToOne: false
+            referencedRelation: "visitor_people"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
       can_manage_institution: {
+        Args: { _institution_id: string; _user_id: string }
+        Returns: boolean
+      }
+      can_operate_security: {
         Args: { _institution_id: string; _user_id: string }
         Returns: boolean
       }
@@ -1384,6 +2013,7 @@ export type Database = {
         Args: { _trip_id: string; _user_id: string }
         Returns: boolean
       }
+      my_profile_id: { Args: { _user_id: string }; Returns: string }
       my_transport_staff_id: { Args: { _user_id: string }; Returns: string }
       notify_transport_approaching: {
         Args: { _student_id: string; _trip_id: string }
