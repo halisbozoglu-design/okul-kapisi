@@ -1,0 +1,328 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
+import markerIcon from 'leaflet/dist/images/marker-icon.png';
+import markerShadow from 'leaflet/dist/images/marker-shadow.png';
+import { Bus, LogOut, MapPin, RefreshCw } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/db';
+import { useAuth } from '@/hooks/useAuth';
+import { deriveStudentStatus, groupEventsByStudent, DerivedStudentStatus } from '@/lib/transport/attendance';
+import { DIRECTION_LABELS, TransportDirection, TransportEventType, TripStatus } from '@/types/transport';
+
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: markerIcon2x,
+  iconUrl: markerIcon,
+  shadowUrl: markerShadow,
+});
+
+interface ChildRow {
+  student_id: string;
+  relation: string | null;
+  first_name: string;
+  last_name: string;
+  student_no: string | null;
+}
+
+interface AssignmentRow {
+  student_id: string;
+  route_id: string;
+  stop_id: string | null;
+  direction: TransportDirection;
+}
+
+interface TripRow {
+  id: string;
+  route_id: string;
+  direction: TransportDirection;
+  status: TripStatus;
+  started_at: string;
+  ended_at: string | null;
+  vehicle_id: string | null;
+  last_lat: number | null;
+  last_lng: number | null;
+  last_location_at: string | null;
+}
+
+interface EventRow {
+  student_id: string | null;
+  trip_id: string;
+  event_type: TransportEventType;
+  occurred_at: string;
+}
+
+interface StopRow { id: string; name: string; lat: number | null; lng: number | null }
+interface RouteRow { id: string; name: string; vehicle_id: string | null }
+interface VehicleRow { id: string; plate: string; service_no: string }
+
+const toneVariant: Record<DerivedStudentStatus['tone'], 'default' | 'secondary' | 'destructive' | 'outline'> = {
+  neutral: 'secondary',
+  positive: 'default',
+  warning: 'outline',
+  danger: 'destructive',
+};
+
+function freshness(iso: string | null) {
+  if (!iso) return 'konum yok';
+  const diff = Math.round((Date.now() - new Date(iso).getTime()) / 1000);
+  if (diff < 60) return `${diff} sn önce`;
+  if (diff < 3600) return `${Math.round(diff / 60)} dk önce`;
+  return new Date(iso).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+}
+
+export default function ParentPage() {
+  const { user, signOut } = useAuth();
+  const [children, setChildren] = useState<ChildRow[]>([]);
+  const [assignments, setAssignments] = useState<AssignmentRow[]>([]);
+  const [routes, setRoutes] = useState<RouteRow[]>([]);
+  const [vehicles, setVehicles] = useState<VehicleRow[]>([]);
+  const [stops, setStops] = useState<StopRow[]>([]);
+  const [trips, setTrips] = useState<TripRow[]>([]);
+  const [events, setEvents] = useState<EventRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!user) return;
+    const { data: links } = await db
+      .from('student_guardians')
+      .select('student_id, relation')
+      .eq('user_id', user.id)
+      .eq('is_active', true)
+      .is('deleted_at', null);
+
+    const studentIds = ((links || []) as { student_id: string }[]).map(l => l.student_id);
+    if (studentIds.length === 0) {
+      setChildren([]); setLoading(false); return;
+    }
+
+    const { data: students } = await db
+      .from('students')
+      .select('id, first_name, last_name, student_no')
+      .in('id', studentIds)
+      .is('deleted_at', null);
+
+    const relations = Object.fromEntries(
+      ((links || []) as { student_id: string; relation: string | null }[]).map(l => [l.student_id, l.relation]),
+    );
+    setChildren(((students || []) as { id: string; first_name: string; last_name: string; student_no: string | null }[])
+      .map(s => ({
+        student_id: s.id,
+        first_name: s.first_name,
+        last_name: s.last_name,
+        student_no: s.student_no,
+        relation: relations[s.id] ?? null,
+      })));
+
+    const { data: assignRows } = await db
+      .from('student_transport_assignments')
+      .select('student_id, route_id, stop_id, direction')
+      .in('student_id', studentIds)
+      .eq('is_active', true)
+      .is('deleted_at', null);
+    const assigns = (assignRows || []) as AssignmentRow[];
+    setAssignments(assigns);
+
+    const routeIds = [...new Set(assigns.map(a => a.route_id))];
+    const stopIds = assigns.map(a => a.stop_id).filter(Boolean) as string[];
+
+    const [routeRes, stopRes, tripRes, eventRes] = await Promise.all([
+      routeIds.length
+        ? db.from('routes').select('id, name, vehicle_id').in('id', routeIds)
+        : Promise.resolve({ data: [] }),
+      stopIds.length
+        ? db.from('route_stops').select('id, name, lat, lng').in('id', stopIds)
+        : Promise.resolve({ data: [] }),
+      routeIds.length
+        ? db.from('transport_trips')
+            .select('id, route_id, direction, status, started_at, ended_at, vehicle_id, last_lat, last_lng, last_location_at')
+            .in('route_id', routeIds)
+            .order('started_at', { ascending: false })
+        : Promise.resolve({ data: [] }),
+      db.from('transport_events')
+        .select('student_id, trip_id, event_type, occurred_at')
+        .in('student_id', studentIds)
+        .order('occurred_at', { ascending: true }),
+    ]);
+
+    const routeRows = (routeRes.data || []) as RouteRow[];
+    setRoutes(routeRows);
+    setStops((stopRes.data || []) as StopRow[]);
+    setTrips((tripRes.data || []) as TripRow[]);
+    setEvents((eventRes.data || []) as EventRow[]);
+
+    const vehicleIds = [...new Set([
+      ...routeRows.map(r => r.vehicle_id),
+      ...((tripRes.data || []) as TripRow[]).map(t => t.vehicle_id),
+    ].filter(Boolean) as string[])];
+    if (vehicleIds.length) {
+      const { data: vs } = await db.from('vehicles').select('id, plate, service_no').in('id', vehicleIds);
+      setVehicles((vs || []) as VehicleRow[]);
+    } else {
+      setVehicles([]);
+    }
+    setLoading(false);
+  }, [user]);
+
+  useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase
+      .channel('parent-transport')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transport_events' }, () => load())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transport_trips' }, () => load())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [user, load]);
+
+  const eventsByStudent = useMemo(() => groupEventsByStudent(events), [events]);
+
+  const cards = useMemo(() => children.map(child => {
+    const assignment = assignments.find(a => a.student_id === child.student_id) ?? null;
+    const route = assignment ? routes.find(r => r.id === assignment.route_id) ?? null : null;
+    const stop = assignment?.stop_id ? stops.find(s => s.id === assignment.stop_id) ?? null : null;
+    const trip = assignment
+      ? trips.find(t => t.route_id === assignment.route_id && t.status === 'active')
+        ?? trips.find(t => t.route_id === assignment.route_id)
+        ?? null
+      : null;
+    const childEvents = (eventsByStudent[child.student_id] ?? []).filter(e => !trip || e.trip_id === trip.id);
+    const derived = deriveStudentStatus({
+      events: childEvents,
+      tripStatus: trip?.status ?? null,
+      direction: trip?.direction ?? assignment?.direction ?? null,
+    });
+    const vehicle = vehicles.find(v => v.id === (trip?.vehicle_id ?? route?.vehicle_id)) ?? null;
+    return { child, assignment, route, stop, trip, derived, vehicle };
+  }), [children, assignments, routes, stops, trips, vehicles, eventsByStudent]);
+
+  if (loading) {
+    return <div className="min-h-screen grid place-items-center text-muted-foreground">Yükleniyor...</div>;
+  }
+
+  return (
+    <div className="min-h-screen bg-muted/30 pb-16">
+      <header className="sticky top-0 z-10 bg-primary text-primary-foreground px-4 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-2 min-w-0">
+          <Bus className="h-5 w-5 shrink-0" />
+          <div className="min-w-0">
+            <p className="font-semibold text-sm truncate">Servis Takibi</p>
+            <p className="text-xs opacity-80">Veli Ekranı</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost" size="icon" className="h-11 w-11 text-primary-foreground"
+            onClick={async () => { setRefreshing(true); await load(); setRefreshing(false); }}
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-11 w-11 text-primary-foreground" onClick={() => signOut()}>
+            <LogOut className="h-4 w-4" />
+          </Button>
+        </div>
+      </header>
+
+      <main className="p-3 space-y-3 max-w-md mx-auto">
+        {cards.length === 0 && (
+          <Card>
+            <CardContent className="p-4 space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Hesabınıza bağlı öğrenci bulunmuyor. Okul yönetiminden hesabınızın
+                öğrenciye bağlanmasını isteyin.
+              </p>
+              <Button asChild variant="outline" className="w-full min-h-11">
+                <Link to="/dashboard">Panele Dön</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {cards.map(({ child, assignment, route, stop, trip, derived, vehicle }) => {
+          const hasLive = trip?.status === 'active' && trip.last_lat != null && trip.last_lng != null;
+          const center: [number, number] = hasLive
+            ? [trip!.last_lat as number, trip!.last_lng as number]
+            : stop?.lat != null && stop?.lng != null
+              ? [stop.lat, stop.lng]
+              : [39.925, 32.866];
+          return (
+            <Card key={child.student_id}>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-start justify-between gap-2">
+                  <span className="truncate">{child.first_name} {child.last_name}</span>
+                  <Badge variant={toneVariant[derived.tone]} className="shrink-0">{derived.label}</Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                  <dt className="text-muted-foreground">Hat</dt>
+                  <dd className="text-right font-medium truncate">{route?.name ?? 'Atanmadı'}</dd>
+                  <dt className="text-muted-foreground">Yön</dt>
+                  <dd className="text-right font-medium">
+                    {trip ? DIRECTION_LABELS[trip.direction] : assignment ? DIRECTION_LABELS[assignment.direction] : '-'}
+                  </dd>
+                  <dt className="text-muted-foreground">Durak</dt>
+                  <dd className="text-right font-medium truncate">{stop?.name ?? '-'}</dd>
+                  <dt className="text-muted-foreground">Araç</dt>
+                  <dd className="text-right font-medium truncate">
+                    {vehicle ? `${vehicle.service_no} · ${vehicle.plate}` : '-'}
+                  </dd>
+                  <dt className="text-muted-foreground">Son hareket</dt>
+                  <dd className="text-right font-medium">
+                    {derived.lastEventAt
+                      ? new Date(derived.lastEventAt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
+                      : '-'}
+                  </dd>
+                  <dt className="text-muted-foreground">Konum güncelliği</dt>
+                  <dd className="text-right font-medium">{trip ? freshness(trip.last_location_at) : '-'}</dd>
+                </dl>
+
+                {trip?.status === 'active' ? (
+                  <div className="h-56 rounded-lg overflow-hidden border">
+                    <MapContainer center={center} zoom={14} className="h-full w-full" scrollWheelZoom={false}>
+                      <TileLayer
+                        attribution='&copy; OpenStreetMap katkıda bulunanlar'
+                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                      />
+                      {hasLive && (
+                        <Marker position={[trip.last_lat as number, trip.last_lng as number]}>
+                          <Popup>
+                            <div className="text-sm">
+                              <p className="font-medium">{vehicle ? vehicle.plate : 'Servis aracı'}</p>
+                              <p>{freshness(trip.last_location_at)}</p>
+                            </div>
+                          </Popup>
+                        </Marker>
+                      )}
+                      {stop?.lat != null && stop?.lng != null && (
+                        <Marker position={[stop.lat, stop.lng]}>
+                          <Popup><span className="text-sm">Durak: {stop.name}</span></Popup>
+                        </Marker>
+                      )}
+                    </MapContainer>
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-dashed p-4 text-center text-xs text-muted-foreground flex flex-col items-center gap-1">
+                    <MapPin className="h-4 w-4" />
+                    Şu anda aktif sefer yok. Sefer başladığında konum burada görünecek.
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
+
+        <p className="text-[11px] text-muted-foreground text-center px-2">
+          Konum yalnızca aktif sefer sırasında ve şoför telefonunun ekranı açıkken güncellenir.
+        </p>
+      </main>
+    </div>
+  );
+}
