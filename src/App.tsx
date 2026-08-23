@@ -90,6 +90,13 @@ const App = () => (
             <Route path="/transport/driver" element={<ProtectedRoute><DriverPage /></ProtectedRoute>} />
             <Route path="/transport/parent" element={<ProtectedRoute requiredRoles={['veli', 'super_admin', 'kurum_yoneticisi', 'okul_yoneticisi']}><ParentPage /></ProtectedRoute>} />
 
+            {/* Güvenlik & Ziyaretçi */}
+            <Route path="/security/visitors/check-in" element={<ProtectedRoute requiredRoles={[...SECURITY_OPERATORS]}><SecurityCheckInPage /></ProtectedRoute>} />
+            <Route path="/security/visitors/inside" element={<ProtectedRoute requiredRoles={[...SECURITY_OPERATORS]}><VisitorsInsidePage /></ProtectedRoute>} />
+            <Route path="/security/visitors/ledger" element={<ProtectedRoute requiredRoles={[...SECURITY_OPERATORS]}><VisitorLedgerPage /></ProtectedRoute>} />
+            <Route path="/security/locations" element={<ProtectedRoute requiredRoles={[...SECURITY_MANAGERS]}><SecurityLocationsPage /></ProtectedRoute>} />
+            <Route path="/security/student-duty" element={<ProtectedRoute requiredRoles={[...SECURITY_MANAGERS, 'ogretmen']}><StudentDutyPage /></ProtectedRoute>} />
+
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
