@@ -13,7 +13,13 @@
 import { haversineMeters, type LatLng } from './eta';
 import { computeTripDelay, type PlannedStop } from './delay';
 
-export type SafetyAlertType = 'GPS_LOST' | 'POOR_GPS' | 'LONG_STOP' | 'ROUTE_DEVIATION' | 'DELAYED';
+export type SafetyAlertType =
+  | 'GPS_LOST'
+  | 'POOR_GPS'
+  | 'LONG_STOP'
+  | 'ROUTE_DEVIATION'
+  | 'DELAYED'
+  | 'CAPACITY_EXCEEDED';
 export type SafetySeverity = 'critical' | 'high' | 'warning';
 
 export interface SafetyAlert {
@@ -129,12 +135,30 @@ export interface SafetyInput {
   pings?: PingSample[];
   stops?: StopCoord[];
   now?: number;
+  /**
+   * Live occupancy derived from `transport_events` (see ./occupancy).
+   * Optional: when absent no capacity alert is produced.
+   */
+  occupancy?: { count: number; capacity: number | null };
 }
 
 export function computeTripAlerts(input: SafetyInput): SafetyAlert[] {
-  const { trip, pings = [], stops = [], now = Date.now() } = input;
+  const { trip, pings = [], stops = [], now = Date.now(), occupancy } = input;
   const alerts: SafetyAlert[] = [];
   const tripId = trip.id;
+
+  // --- CAPACITY_EXCEEDED ----------------------------------------------------
+  // Independent of GPS: derived purely from boarding/disembark history.
+  if (occupancy && occupancy.capacity != null && occupancy.capacity > 0
+      && occupancy.count > occupancy.capacity) {
+    alerts.push({
+      tripId,
+      type: 'CAPACITY_EXCEEDED',
+      severity: 'critical',
+      title: 'Kapasite aşımı',
+      detail: `Araçta ${occupancy.count} öğrenci görünüyor, kapasite ${occupancy.capacity}. ${occupancy.count - occupancy.capacity} kişi fazla.`,
+    });
+  }
 
   const ageS = secondsSince(trip.last_location_at, now);
   const sinceStartS = secondsSince(trip.started_at, now) ?? 0;
@@ -260,6 +284,7 @@ export interface AlertSummary {
   routeDeviation: number;
   poorGps: number;
   delayed: number;
+  capacityExceeded: number;
 }
 
 export function summarizeAlerts(alerts: SafetyAlert[]): AlertSummary {
@@ -271,5 +296,6 @@ export function summarizeAlerts(alerts: SafetyAlert[]): AlertSummary {
     routeDeviation: alerts.filter(a => a.type === 'ROUTE_DEVIATION').length,
     poorGps: alerts.filter(a => a.type === 'POOR_GPS').length,
     delayed: alerts.filter(a => a.type === 'DELAYED').length,
+    capacityExceeded: alerts.filter(a => a.type === 'CAPACITY_EXCEEDED').length,
   };
 }

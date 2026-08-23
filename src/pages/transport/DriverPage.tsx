@@ -20,6 +20,10 @@ import { TransportAbsence, findActiveAbsence, toDateKey } from '@/lib/transport/
 import { selectApproachingCandidates } from '@/lib/transport/notifications';
 import { LocationQueue, QueuedPing } from '@/lib/transport/locationQueue';
 import { deriveOnboardStudentIds, OnboardEventLike } from '@/lib/transport/onboard';
+import {
+  canBoardStudent, computeOccupancy, formatOccupancy, normalizeCapacity,
+  type OccupancyState,
+} from '@/lib/transport/occupancy';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -61,6 +65,9 @@ export default function DriverPage() {
   const [finalCheckConfirmed, setFinalCheckConfirmed] = useState(false);
   const [online, setOnline] = useState(typeof navigator === 'undefined' ? true : navigator.onLine);
   const [pendingCount, setPendingCount] = useState(0);
+  const [capacity, setCapacity] = useState<number | null>(null);
+  const [occupancy, setOccupancy] = useState<OccupancyState>(() => computeOccupancy([], null));
+  const [capacityError, setCapacityError] = useState<string | null>(null);
   const [lastSyncAt, setLastSyncAt] = useState<number | null>(null);
 
   const providerRef = useRef(new BrowserGeolocationProvider());
@@ -78,6 +85,8 @@ export default function DriverPage() {
   absencesRef.current = absences;
   /** approaching notifications already requested this session (trip:student) */
   const approachRequestedRef = useRef<Set<string>>(new Set());
+  const capacityRef = useRef<number | null>(null);
+  capacityRef.current = capacity;
   const sampleRef = useRef<LocationSample | null>(null);
   sampleRef.current = sample;
 
@@ -131,7 +140,8 @@ export default function DriverPage() {
         .map(s => [s.id, { lat: s.lat, lng: s.lng }]),
     );
 
-    const { data: events } = await db.from('transport_events').select('student_id, event_type, occurred_at')
+    const { data: events } = await db.from('transport_events')
+      .select('student_id, event_type, occurred_at, created_at')
       .eq('trip_id', activeTrip.id).order('occurred_at', { ascending: true });
     const map: Record<string, TransportEventType> = {};
     (events || []).forEach((e: { student_id: string | null; event_type: TransportEventType }) => {
@@ -140,6 +150,19 @@ export default function DriverPage() {
       }
     });
     setStatuses(map);
+
+    // Vehicle capacity — explicit, non-sensitive projection.
+    let cap: number | null = null;
+    if (activeTrip.vehicle_id) {
+      const { data: vehicleRows } = await db.from('vehicles')
+        .select('id, capacity')
+        .eq('id', activeTrip.vehicle_id)
+        .limit(1);
+      cap = normalizeCapacity((vehicleRows?.[0] as { capacity: number | null } | undefined)?.capacity);
+    }
+    setCapacity(cap);
+    capacityRef.current = cap;
+    setOccupancy(computeOccupancy((events || []) as OnboardEventLike[], cap));
 
     // Students whose guardian reported they will not use the service today.
     const studentIds = rows.map(r => r.student_id);
@@ -361,16 +384,22 @@ export default function DriverPage() {
    * Reads the trip's event history and returns the students that may still be
    * inside the vehicle. Returns null when the query fails (fail closed).
    */
-  const fetchOnboardStudentIds = async (tripId: string): Promise<string[] | null> => {
+  /** Reads the raw event history for a trip. Returns null on failure (fail closed). */
+  const fetchTripEvents = async (tripId: string): Promise<OnboardEventLike[] | null> => {
     const { data, error } = await db.from('transport_events')
       .select('student_id, event_type, occurred_at, created_at')
       .eq('trip_id', tripId)
       .order('occurred_at', { ascending: true });
     if (error) {
-      console.error('final check query failed', error);
+      console.error('transport_events read failed', error);
       return null;
     }
-    return deriveOnboardStudentIds((data || []) as OnboardEventLike[]);
+    return (data || []) as OnboardEventLike[];
+  };
+
+  const fetchOnboardStudentIds = async (tripId: string): Promise<string[] | null> => {
+    const events = await fetchTripEvents(tripId);
+    return events === null ? null : deriveOnboardStudentIds(events);
   };
 
   /** Step 1 — never closes the trip directly; opens the safety check first. */
@@ -444,22 +473,50 @@ export default function DriverPage() {
     setAssignments([]);
     setStatuses({});
     setAbsences([]);
+    setCapacity(null);
+    capacityRef.current = null;
+    setOccupancy(computeOccupancy([], null));
+    setCapacityError(null);
     toast.success('Sefer tamamlandı');
   };
 
 
 
   const markStudent = async (studentId: string, type: TransportEventType) => {
+    const t = tripRef.current;
+    setCapacityError(null);
+
+    // BOARDING is verified against the freshly-read event history BEFORE the
+    // insert (check -> write -> UI), so a stale local state can never let an
+    // extra student on board. DISEMBARK / NO_SHOW are never blocked.
+    if (type === 'BOARDING' && t) {
+      const events = await fetchTripEvents(t.id);
+      if (events === null) {
+        toast.error('Doluluk doğrulanamadı. Biniş kaydedilmedi, tekrar deneyin.');
+        return;
+      }
+      const decision = canBoardStudent(events, capacityRef.current, studentId);
+      setOccupancy(decision.occupancy);
+      if (!decision.allowed) {
+        setCapacityError(decision.reason ?? 'Araç kapasitesi dolu.');
+        toast.error(decision.reason ?? 'Araç kapasitesi dolu.');
+        return;
+      }
+    }
+
     const previous = statuses[studentId];
-    setStatuses(prev => ({ ...prev, [studentId]: type }));
     const ok = await logEvent(type, { student_id: studentId });
     if (!ok) {
-      setStatuses(prev => {
-        const next = { ...prev };
-        if (previous) next[studentId] = previous; else delete next[studentId];
-        return next;
-      });
       toast.error('Yoklama kaydedilemedi, tekrar deneyin.');
+      return;
+    }
+    setStatuses(prev => ({ ...prev, [studentId]: type }));
+    void previous;
+
+    // Re-derive occupancy from the authoritative event history.
+    if (t) {
+      const events = await fetchTripEvents(t.id);
+      if (events) setOccupancy(computeOccupancy(events, capacityRef.current));
     }
   };
 
@@ -544,6 +601,12 @@ export default function DriverPage() {
                 <div className="text-sm">
                   <p className="font-medium">{routes.find(r => r.id === trip.route_id)?.name ?? 'Hat'}</p>
                   <p className="text-muted-foreground">{DIRECTION_LABELS[trip.direction]} · {new Date(trip.started_at).toLocaleTimeString('tr-TR')}</p>
+                  <p className="mt-1 font-medium">Doluluk: {formatOccupancy(occupancy)}</p>
+                  {occupancy.isOverflow && (
+                    <p className="text-destructive font-medium">
+                      Kapasite aşıldı ({occupancy.overflowBy} kişi fazla).
+                    </p>
+                  )}
                 </div>
                 <Button variant="destructive" className="w-full h-14 text-base" disabled={busy} onClick={requestEndTrip}>
                   <Square className="mr-2 h-5 w-5" />Seferi Bitir
@@ -628,9 +691,22 @@ export default function DriverPage() {
         {trip && (
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Öğrenci Yoklaması ({assignments.length})</CardTitle>
+              <CardTitle className="text-base flex flex-wrap items-center justify-between gap-2">
+                <span>Öğrenci Yoklaması ({assignments.length})</span>
+                <Badge variant={occupancy.isOverflow ? 'destructive' : 'secondary'}>
+                  Doluluk: {formatOccupancy(occupancy)}
+                </Badge>
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
+              {capacityError && (
+                <Alert variant="destructive">
+                  <AlertTitle>Kapasite dolu</AlertTitle>
+                  <AlertDescription className="text-sm">
+                    {capacityError} Önce inen öğrencilerin inişini kaydedin.
+                  </AlertDescription>
+                </Alert>
+              )}
               {assignments.length === 0 && <p className="text-sm text-muted-foreground">Bu hatta atanmış öğrenci yok.</p>}
               {assignments.map(a => {
                 const s = a.students;
@@ -653,6 +729,7 @@ export default function DriverPage() {
                     ) : (
                       <div className="grid grid-cols-3 gap-2">
                         <Button size="sm" variant={st === 'BOARDING' ? 'default' : 'outline'} className="h-11"
+                          disabled={occupancy.isFull && !occupancy.onboardStudentIds.includes(a.student_id)}
                           onClick={() => markStudent(a.student_id, 'BOARDING')}><Check className="h-4 w-4 mr-1" />Bindi</Button>
                         <Button size="sm" variant={st === 'NO_SHOW' ? 'destructive' : 'outline'} className="h-11"
                           onClick={() => markStudent(a.student_id, 'NO_SHOW')}><X className="h-4 w-4 mr-1" />Binmedi</Button>
