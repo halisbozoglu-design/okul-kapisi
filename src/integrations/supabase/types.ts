@@ -578,6 +578,60 @@ export type Database = {
           },
         ]
       }
+      student_guardians: {
+        Row: {
+          can_track: boolean
+          created_at: string
+          deleted_at: string | null
+          id: string
+          institution_id: string
+          is_active: boolean
+          relation: string | null
+          student_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          can_track?: boolean
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          institution_id: string
+          is_active?: boolean
+          relation?: string | null
+          student_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          can_track?: boolean
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          institution_id?: string
+          is_active?: boolean
+          relation?: string | null
+          student_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_guardians_institution_id_fkey"
+            columns: ["institution_id"]
+            isOneToOne: false
+            referencedRelation: "institutions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_guardians_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       student_transport_assignments: {
         Row: {
           created_at: string
@@ -1166,6 +1220,18 @@ export type Database = {
         Returns: boolean
       }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
+      is_guardian_of_route: {
+        Args: { _route_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_guardian_of_student: {
+        Args: { _student_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_guardian_of_trip: {
+        Args: { _trip_id: string; _user_id: string }
+        Returns: boolean
+      }
       is_transport_staff_of_route: {
         Args: { _route_id: string; _user_id: string }
         Returns: boolean
