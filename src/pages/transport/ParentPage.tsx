@@ -273,7 +273,7 @@ export default function ParentPage() {
           lastLocationAt: trip.last_location_at,
           lastSpeedMs: trip.last_speed,
         })
-      : { available: false as const };
+      : ({ available: false } as ReturnType<typeof estimateEta>);
 
     return { child, assignment, route, stop, trip, derived, vehicle, todayAbsence, upcoming, eta };
   }), [children, assignments, routes, stops, trips, vehicles, eventsByStudent, absences]);
