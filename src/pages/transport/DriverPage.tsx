@@ -514,10 +514,38 @@ export default function DriverPage() {
                 {sample.lat.toFixed(5)}, {sample.lng.toFixed(5)} · {new Date(sample.timestamp).toLocaleTimeString('tr-TR')}
               </p>
             )}
+
+            {/* Bağlantı ve senkronizasyon durumu */}
+            <div className="rounded-md border p-2 space-y-1">
+              <div className="flex items-center justify-between gap-2">
+                <span className="flex items-center gap-1.5 text-xs font-medium">
+                  {online
+                    ? <><Wifi className="h-3.5 w-3.5 text-primary" />Çevrimiçi</>
+                    : <><WifiOff className="h-3.5 w-3.5 text-destructive" />Çevrimdışı</>}
+                </span>
+                <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <CloudUpload className="h-3.5 w-3.5" />
+                  Bekleyen: {pendingCount}
+                </span>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Son başarılı gönderim: {lastSyncAt ? new Date(lastSyncAt).toLocaleTimeString('tr-TR') : '-'}
+              </p>
+              {pendingCount > 0 && (
+                <p className="text-[11px] text-muted-foreground">
+                  {online
+                    ? 'Konum kaydı cihazda bekliyor, gönderim sürüyor.'
+                    : 'Konum kaydı cihazda bekliyor. Bağlantı gelince otomatik gönderilecek.'}
+                </p>
+              )}
+            </div>
+
             <p className="text-[11px] text-muted-foreground">
-              Konum yalnızca sefer sırasında ve izniniz ile paylaşılır. Ekran kapalıyken telefon
-              tarayıcısı konum göndermeyi durdurabilir; ekranı açık tutun.
+              Konum yalnızca sefer sırasında ve izniniz ile paylaşılır. Canlı takip için uygulamanın
+              açık ve ekranın aktif olması gerekir; iPhone/Android tarayıcısı arka planda konum
+              göndermeyi durdurabilir.
             </p>
+
           </CardContent>
         </Card>
 
