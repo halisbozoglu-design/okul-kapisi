@@ -1404,6 +1404,7 @@ export type Database = {
         | "NO_SHOW"
         | "DISEMBARK"
         | "END_TRIP"
+        | "VEHICLE_CHECK"
       transport_staff_role: "driver" | "attendant"
       transport_trip_status: "planned" | "active" | "completed" | "cancelled"
     }
@@ -1553,6 +1554,7 @@ export const Constants = {
         "NO_SHOW",
         "DISEMBARK",
         "END_TRIP",
+        "VEHICLE_CHECK",
       ],
       transport_staff_role: ["driver", "attendant"],
       transport_trip_status: ["planned", "active", "completed", "cancelled"],
