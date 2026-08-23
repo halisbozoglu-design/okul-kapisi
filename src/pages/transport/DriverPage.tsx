@@ -19,6 +19,11 @@ import {
 import { TransportAbsence, findActiveAbsence, toDateKey } from '@/lib/transport/absences';
 import { selectApproachingCandidates } from '@/lib/transport/notifications';
 import { LocationQueue, QueuedPing } from '@/lib/transport/locationQueue';
+import { deriveOnboardStudentIds, OnboardEventLike } from '@/lib/transport/onboard';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
 
 const MIN_INTERVAL_MS = 8000;
 const MIN_DISTANCE_M = 20;
@@ -51,6 +56,9 @@ export default function DriverPage() {
   const [geoError, setGeoError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [checkOpen, setCheckOpen] = useState(false);
+  const [pendingStudentIds, setPendingStudentIds] = useState<string[]>([]);
+  const [finalCheckConfirmed, setFinalCheckConfirmed] = useState(false);
   const [online, setOnline] = useState(typeof navigator === 'undefined' ? true : navigator.onLine);
   const [pendingCount, setPendingCount] = useState(0);
   const [lastSyncAt, setLastSyncAt] = useState<number | null>(null);
@@ -349,9 +357,70 @@ export default function DriverPage() {
     startSharing();
   };
 
-  const endTrip = async () => {
+  /**
+   * Reads the trip's event history and returns the students that may still be
+   * inside the vehicle. Returns null when the query fails (fail closed).
+   */
+  const fetchOnboardStudentIds = async (tripId: string): Promise<string[] | null> => {
+    const { data, error } = await db.from('transport_events')
+      .select('student_id, event_type, occurred_at, created_at')
+      .eq('trip_id', tripId)
+      .order('occurred_at', { ascending: true });
+    if (error) {
+      console.error('final check query failed', error);
+      return null;
+    }
+    return deriveOnboardStudentIds((data || []) as OnboardEventLike[]);
+  };
+
+  /** Step 1 — never closes the trip directly; opens the safety check first. */
+  const requestEndTrip = async () => {
     if (!trip) return;
     setBusy(true);
+    const onboard = await fetchOnboardStudentIds(trip.id);
+    setBusy(false);
+    if (onboard === null) {
+      toast.error('Güvenlik kontrolü yapılamadı. Sefer kapatılmadı, tekrar deneyin.');
+      return;
+    }
+    setPendingStudentIds(onboard);
+    setFinalCheckConfirmed(false);
+    setCheckOpen(true);
+  };
+
+  /** Step 2 — runs only after the physical final check is confirmed. */
+  const finalizeEndTrip = async () => {
+    if (!trip || !finalCheckConfirmed) return;
+    setBusy(true);
+
+    // Re-validate right before closing: another device may have logged a boarding.
+    const onboard = await fetchOnboardStudentIds(trip.id);
+    if (onboard === null) {
+      setBusy(false);
+      toast.error('Güvenlik kontrolü yapılamadı. Sefer kapatılmadı, tekrar deneyin.');
+      return;
+    }
+    if (onboard.length > 0) {
+      setPendingStudentIds(onboard);
+      setBusy(false);
+      toast.error('Araçta inişi kaydedilmemiş öğrenci var. Önce inişlerini kaydedin.');
+      return;
+    }
+
+    // Audit evidence of the physical check (no personal data) — fail closed.
+    const checkLogged = await logEvent('VEHICLE_CHECK', {
+      note: JSON.stringify({
+        checked_at: new Date().toISOString(),
+        actor_user_id: user?.id ?? null,
+        pending_student_count: 0,
+      }),
+    });
+    if (!checkLogged) {
+      setBusy(false);
+      toast.error('Son kontrol kaydı yazılamadı. Sefer kapatılmadı.');
+      return;
+    }
+
     // Try to deliver whatever is still queued for THIS trip before closing it.
     await flushQueue();
     const endLogged = await logEvent('END_TRIP');
@@ -366,6 +435,9 @@ export default function DriverPage() {
     if (stillQueued > 0) toast.warning(`${stillQueued} konum kaydı gönderilemedi ve silindi.`);
     await queueRef.current.clear();
     setPendingCount(0);
+    setCheckOpen(false);
+    setFinalCheckConfirmed(false);
+    setPendingStudentIds([]);
     setTrip(null);
     tripRef.current = null;
     lastSentRef.current = null;
@@ -374,6 +446,7 @@ export default function DriverPage() {
     setAbsences([]);
     toast.success('Sefer tamamlandı');
   };
+
 
 
   const markStudent = async (studentId: string, type: TransportEventType) => {
@@ -472,9 +545,12 @@ export default function DriverPage() {
                   <p className="font-medium">{routes.find(r => r.id === trip.route_id)?.name ?? 'Hat'}</p>
                   <p className="text-muted-foreground">{DIRECTION_LABELS[trip.direction]} · {new Date(trip.started_at).toLocaleTimeString('tr-TR')}</p>
                 </div>
-                <Button variant="destructive" className="w-full h-14 text-base" disabled={busy} onClick={endTrip}>
+                <Button variant="destructive" className="w-full h-14 text-base" disabled={busy} onClick={requestEndTrip}>
                   <Square className="mr-2 h-5 w-5" />Seferi Bitir
                 </Button>
+                <p className="text-[11px] text-muted-foreground">
+                  Sefer, araç son kontrolü onaylanmadan kapatılmaz.
+                </p>
               </>
             )}
           </CardContent>
@@ -591,6 +667,60 @@ export default function DriverPage() {
           </Card>
         )}
       </main>
+
+      <Dialog open={checkOpen} onOpenChange={(o) => { if (!busy) setCheckOpen(o); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Araç Son Kontrolü</DialogTitle>
+            <DialogDescription>
+              Sefer kapatılmadan önce araçta öğrenci kalmadığı doğrulanmalıdır.
+            </DialogDescription>
+          </DialogHeader>
+
+          {pendingStudentIds.length > 0 ? (
+            <Alert variant="destructive">
+              <AlertTitle>Araçta öğrenci görünüyor</AlertTitle>
+              <AlertDescription className="text-sm space-y-2">
+                <p>Önce bu öğrencilerin inişini kaydedin:</p>
+                <ul className="list-disc pl-4">
+                  {pendingStudentIds.map(id => {
+                    const s = assignments.find(a => a.student_id === id)?.students;
+                    return (
+                      <li key={id}>{s ? `${s.first_name} ${s.last_name}` : 'Öğrenci'}
+                        {s?.student_no ? ` · ${s.student_no}` : ''}</li>
+                    );
+                  })}
+                </ul>
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <label className="flex items-start gap-3 rounded-lg border p-3 min-h-11 cursor-pointer">
+              <Checkbox
+                className="mt-0.5 h-5 w-5"
+                checked={finalCheckConfirmed}
+                onCheckedChange={(v) => setFinalCheckConfirmed(v === true)}
+              />
+              <span className="text-sm leading-snug">
+                Aracın önünden arkasına kadar kontrol ettim; araçta öğrenci kalmadığını doğruluyorum.
+              </span>
+            </label>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button variant="outline" className="min-h-11 w-full sm:w-auto"
+              disabled={busy} onClick={() => setCheckOpen(false)}>Vazgeç</Button>
+            <Button
+              className="min-h-11 w-full sm:w-auto"
+              variant="destructive"
+              disabled={busy || pendingStudentIds.length > 0 || !finalCheckConfirmed}
+              onClick={finalizeEndTrip}
+            >
+              Son Kontrolü Onayla ve Seferi Bitir
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }

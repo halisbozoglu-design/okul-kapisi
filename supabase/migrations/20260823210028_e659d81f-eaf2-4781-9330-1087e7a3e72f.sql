@@ -1,0 +1,1 @@
+ALTER TYPE public.transport_event_type ADD VALUE IF NOT EXISTS 'VEHICLE_CHECK';

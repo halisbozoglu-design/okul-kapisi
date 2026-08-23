@@ -7,6 +7,7 @@ export type TransportEventType =
   | 'BOARDING'
   | 'NO_SHOW'
   | 'DISEMBARK'
+  | 'VEHICLE_CHECK'
   | 'END_TRIP';
 
 export const DIRECTION_LABELS: Record<TransportDirection, string> = {
@@ -33,6 +34,7 @@ export const EVENT_LABELS: Record<TransportEventType, string> = {
   BOARDING: 'Bindi',
   NO_SHOW: 'Binmedi',
   DISEMBARK: 'İndi',
+  VEHICLE_CHECK: 'Araç Son Kontrol',
   END_TRIP: 'Sefer Bitti',
 };
 
