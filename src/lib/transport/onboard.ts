@@ -48,5 +48,5 @@ export function deriveOnboardStudentIds(events: OnboardEventLike[]): string[] {
     }
   }
 
-  return order.filter(id => onboard.has(id));
+  return order.filter((id, i) => onboard.has(id) && order.indexOf(id) === i);
 }
