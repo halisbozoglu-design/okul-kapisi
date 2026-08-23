@@ -53,6 +53,16 @@ export default function DriverPage() {
   const lastSentRef = useRef<{ at: number; lat: number; lng: number } | null>(null);
   const tripRef = useRef<TransportTrip | null>(null);
   tripRef.current = trip;
+  /** stop coordinates for the current route (no student personal data) */
+  const stopsRef = useRef<Record<string, { lat: number | null; lng: number | null }>>({});
+  const assignmentsRef = useRef<AssignmentRow[]>([]);
+  assignmentsRef.current = assignments;
+  const statusesRef = useRef<Record<string, TransportEventType>>({});
+  statusesRef.current = statuses;
+  const absencesRef = useRef<TransportAbsence[]>([]);
+  absencesRef.current = absences;
+  /** approaching notifications already requested this session (trip:student) */
+  const approachRequestedRef = useRef<Set<string>>(new Set());
 
   // Bootstrap: staff record, routes, active trip
   useEffect(() => {
