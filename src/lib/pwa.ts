@@ -134,3 +134,52 @@ function safeStorage(): Storage | null {
     return null;
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* Early install-prompt capture (module level, runs before React mount) */
+/* ------------------------------------------------------------------ */
+
+let deferredInstallEvent: BeforeInstallPromptEvent | null = null;
+let appInstalled = false;
+const installListeners = new Set<() => void>();
+
+function emitInstallChange() {
+  installListeners.forEach((fn) => fn());
+}
+
+/** Called once from main.tsx so the event is never missed. */
+export function initInstallPromptCapture() {
+  if (typeof window === 'undefined') return;
+  window.addEventListener('beforeinstallprompt', (e: Event) => {
+    e.preventDefault();
+    deferredInstallEvent = e as BeforeInstallPromptEvent;
+    emitInstallChange();
+  });
+  window.addEventListener('appinstalled', () => {
+    appInstalled = true;
+    deferredInstallEvent = null;
+    markInstalled();
+    emitInstallChange();
+  });
+}
+
+export function getDeferredInstallEvent(): BeforeInstallPromptEvent | null {
+  return deferredInstallEvent;
+}
+
+export function clearDeferredInstallEvent() {
+  deferredInstallEvent = null;
+  emitInstallChange();
+}
+
+export function wasAppInstalled(): boolean {
+  return appInstalled;
+}
+
+/** Subscribe to capture/install changes; returns an unsubscribe function. */
+export function subscribeInstallState(listener: () => void): () => void {
+  installListeners.add(listener);
+  return () => {
+    installListeners.delete(listener);
+  };
+}
