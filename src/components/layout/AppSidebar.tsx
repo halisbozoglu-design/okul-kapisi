@@ -82,6 +82,17 @@ const transportItems: NavItem[] = [
   },
 ];
 
+const SECURITY_MANAGERS: AppRole[] = ['super_admin', 'kurum_yoneticisi', 'okul_yoneticisi', 'mudur_yardimcisi'];
+const SECURITY_OPERATORS: AppRole[] = [...SECURITY_MANAGERS, 'personel'];
+
+const securityItems: NavItem[] = [
+  { title: 'Hızlı Ziyaretçi Girişi', url: '/security/visitors/check-in', icon: ScanFace, roles: SECURITY_OPERATORS },
+  { title: 'İçeridekiler', url: '/security/visitors/inside', icon: Users, roles: SECURITY_OPERATORS },
+  { title: 'Ziyaretçi Defteri', url: '/security/visitors/ledger', icon: ClipboardList, roles: SECURITY_OPERATORS },
+  { title: 'Giriş / Nöbet Yerleri', url: '/security/locations', icon: DoorOpen, roles: SECURITY_MANAGERS },
+  { title: 'Nöbetçi Öğrenci', url: '/security/student-duty', icon: ShieldCheck, roles: [...SECURITY_MANAGERS, 'ogretmen'] },
+];
+
 const adminItems: NavItem[] = [
   { title: 'Kullanıcı Yönetimi', url: '/admin/users', icon: Users, roles: ['super_admin'] },
   { title: 'Rol Yönetimi', url: '/admin/roles', icon: Shield, roles: ['super_admin'] },
