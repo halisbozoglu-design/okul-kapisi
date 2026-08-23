@@ -17,6 +17,7 @@ import {
   DIRECTION_LABELS, Student, StudentAssignment, TransportEventType,
 } from '@/types/transport';
 import { TransportAbsence, findActiveAbsence, toDateKey } from '@/lib/transport/absences';
+import { selectApproachingCandidates } from '@/lib/transport/notifications';
 
 const MIN_INTERVAL_MS = 8000;
 const MIN_DISTANCE_M = 20;
@@ -52,6 +53,16 @@ export default function DriverPage() {
   const lastSentRef = useRef<{ at: number; lat: number; lng: number } | null>(null);
   const tripRef = useRef<TransportTrip | null>(null);
   tripRef.current = trip;
+  /** stop coordinates for the current route (no student personal data) */
+  const stopsRef = useRef<Record<string, { lat: number | null; lng: number | null }>>({});
+  const assignmentsRef = useRef<AssignmentRow[]>([]);
+  assignmentsRef.current = assignments;
+  const statusesRef = useRef<Record<string, TransportEventType>>({});
+  statusesRef.current = statuses;
+  const absencesRef = useRef<TransportAbsence[]>([]);
+  absencesRef.current = absences;
+  /** approaching notifications already requested this session (trip:student) */
+  const approachRequestedRef = useRef<Set<string>>(new Set());
 
   // Bootstrap: staff record, routes, active trip
   useEffect(() => {
@@ -90,6 +101,17 @@ export default function DriverPage() {
       .filter(a => a.direction === 'both' || a.direction === activeTrip.direction);
     setAssignments(rows);
 
+    // Stop coordinates only — used locally to decide when to ask the server for
+    // an "approaching" notification; guardian contact data is never fetched here.
+    const { data: stopRows } = await db.from('route_stops')
+      .select('id, lat, lng')
+      .eq('route_id', activeTrip.route_id)
+      .is('deleted_at', null);
+    stopsRef.current = Object.fromEntries(
+      ((stopRows || []) as { id: string; lat: number | null; lng: number | null }[])
+        .map(s => [s.id, { lat: s.lat, lng: s.lng }]),
+    );
+
     const { data: events } = await db.from('transport_events').select('student_id, event_type, occurred_at')
       .eq('trip_id', activeTrip.id).order('occurred_at', { ascending: true });
     const map: Record<string, TransportEventType> = {};
@@ -115,7 +137,10 @@ export default function DriverPage() {
     }
   }, []);
 
-  useEffect(() => { if (trip) loadStudents(trip); }, [trip?.id, loadStudents]); // eslint-disable-line
+  useEffect(() => {
+    approachRequestedRef.current = new Set();
+    if (trip) loadStudents(trip);
+  }, [trip?.id, loadStudents]); // eslint-disable-line
 
   const logEvent = async (
     type: TransportEventType,
@@ -160,6 +185,40 @@ export default function DriverPage() {
       last_lat: s.lat, last_lng: s.lng, last_accuracy: s.accuracy,
       last_speed: s.speed, last_heading: s.heading, last_location_at: recordedAt,
     }).eq('id', t.id);
+
+    // Ask the server (security definer RPC, re-validates everything) to create
+    // "approaching" notifications. Candidates are filtered locally first so the
+    // RPC is called at most once per student per trip.
+    const candidates = selectApproachingCandidates({
+      tripId: t.id,
+      tripDirection: t.direction,
+      tripStatus: 'active',
+      vehicle: { lat: s.lat, lng: s.lng },
+      lastLocationAt: recordedAt,
+      lastSpeedMs: s.speed,
+      dateKey: toDateKey(new Date()),
+      absences: absencesRef.current,
+      alreadyRequested: approachRequestedRef.current,
+      settledStudentIds: new Set(Object.keys(statusesRef.current)),
+      students: assignmentsRef.current.map(a => {
+        const stop = a.stop_id ? stopsRef.current[a.stop_id] : null;
+        return {
+          studentId: a.student_id,
+          stop: stop && stop.lat != null && stop.lng != null
+            ? { lat: stop.lat, lng: stop.lng } : null,
+        };
+      }),
+    });
+    for (const c of candidates) {
+      approachRequestedRef.current.add(c.requestKey);
+      const { error: rpcError } = await db.rpc('notify_transport_approaching', {
+        _trip_id: t.id, _student_id: c.studentId,
+      });
+      if (rpcError) {
+        approachRequestedRef.current.delete(c.requestKey);
+        console.error('notify_transport_approaching failed', rpcError);
+      }
+    }
   }, []);
 
   const startSharing = useCallback(() => {

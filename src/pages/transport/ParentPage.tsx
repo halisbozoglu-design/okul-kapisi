@@ -6,7 +6,7 @@ import 'leaflet/dist/leaflet.css';
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
-import { Bus, CalendarOff, LogOut, MapPin, RefreshCw, Timer, Undo2 } from 'lucide-react';
+import { Bell, BellOff, Bus, CalendarOff, CheckCheck, LogOut, MapPin, RefreshCw, Timer, Undo2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -24,6 +24,9 @@ import {
   ABSENCE_DIRECTION_LABELS, TransportAbsence, findActiveAbsence, toDateKey,
 } from '@/lib/transport/absences';
 import { DIRECTION_LABELS, TransportDirection, TransportEventType, TripStatus } from '@/types/transport';
+import { TransportNotification } from '@/lib/transport/notifications';
+
+const NOTIFICATION_COLUMNS = 'id, student_id, trip_id, type, title, body, read_at, created_at';
 
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: markerIcon2x,
@@ -97,6 +100,7 @@ export default function ParentPage() {
   const [trips, setTrips] = useState<TripRow[]>([]);
   const [events, setEvents] = useState<EventRow[]>([]);
   const [absences, setAbsences] = useState<TransportAbsence[]>([]);
+  const [notifications, setNotifications] = useState<TransportNotification[]>([]);
   const [absenceForm, setAbsenceForm] = useState<{ child: ChildRow } | null>(null);
   const [absenceDate, setAbsenceDate] = useState(toDateKey(new Date()));
   const [absenceDirection, setAbsenceDirection] = useState<TransportDirection>('both');
@@ -184,6 +188,15 @@ export default function ParentPage() {
       .order('absence_date', { ascending: true });
     setAbsences((absenceRows || []) as TransportAbsence[]);
 
+    const { data: notificationRows } = await db
+      .from('transport_notifications')
+      .select(NOTIFICATION_COLUMNS)
+      .eq('guardian_user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(30);
+    setNotifications((notificationRows || []) as TransportNotification[]);
+
+
     const vehicleIds = [...new Set([
       ...routeRows.map(r => r.vehicle_id),
       ...((tripRes.data || []) as TripRow[]).map(t => t.vehicle_id),
@@ -224,6 +237,15 @@ export default function ParentPage() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'transport_trips' }, payload => {
         const row = (payload.new ?? payload.old) as { route_id?: string | null } | null;
         if (!row?.route_id || routeIds.has(row.route_id)) schedule();
+      })
+      // Notifications can be filtered safely: rows are keyed by guardian_user_id.
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'transport_notifications',
+        filter: `guardian_user_id=eq.${user.id}`,
+      }, payload => {
+        const row = payload.new as TransportNotification;
+        setNotifications(prev =>
+          prev.some(n => n.id === row.id) ? prev : [row, ...prev].slice(0, 30));
       })
       .subscribe();
     return () => {
@@ -316,6 +338,29 @@ export default function ParentPage() {
     toast.success('Bildirim iptal edildi');
     load();
   };
+
+  const childName = (studentId: string) => {
+    const c = children.find(x => x.student_id === studentId);
+    return c ? `${c.first_name} ${c.last_name}` : '';
+  };
+
+  const unreadCount = notifications.filter(n => n.read_at == null).length;
+
+  const markRead = async (ids: string[]) => {
+    if (ids.length === 0) return;
+    const readAt = new Date().toISOString();
+    setNotifications(prev => prev.map(n =>
+      ids.includes(n.id) && n.read_at == null ? { ...n, read_at: readAt } : n));
+    const { error } = await db.from('transport_notifications')
+      .update({ read_at: readAt })
+      .in('id', ids)
+      .is('read_at', null);
+    if (error) {
+      toast.error('Bildirim okundu olarak işaretlenemedi.');
+      load();
+    }
+  };
+
 
   if (loading) {
     return <div className="min-h-screen grid place-items-center text-muted-foreground">Yükleniyor...</div>;
@@ -475,6 +520,53 @@ export default function ParentPage() {
             </Card>
           );
         })}
+
+        {children.length > 0 && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center justify-between gap-2">
+                <span className="flex items-center gap-2">
+                  <Bell className="h-4 w-4" />Bildirimler
+                  {unreadCount > 0 && <Badge className="shrink-0">{unreadCount}</Badge>}
+                </span>
+                {unreadCount > 0 && (
+                  <Button
+                    size="sm" variant="ghost" className="h-9 text-xs"
+                    onClick={() => markRead(notifications.filter(n => n.read_at == null).map(n => n.id))}
+                  >
+                    <CheckCheck className="h-3.5 w-3.5 mr-1" />Tümünü okundu yap
+                  </Button>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {notifications.length === 0 ? (
+                <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                  <BellOff className="h-3.5 w-3.5" />Henüz bildirim yok.
+                </p>
+              ) : notifications.map(n => (
+                <button
+                  key={n.id}
+                  type="button"
+                  onClick={() => markRead(n.read_at == null ? [n.id] : [])}
+                  className={`w-full text-left rounded-lg border p-3 min-h-11 ${
+                    n.read_at == null ? 'border-primary bg-primary/5' : 'bg-muted/40'}`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-xs font-medium truncate">{n.title}</p>
+                    <span className="text-[11px] text-muted-foreground shrink-0">
+                      {new Date(n.created_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground break-words">
+                    {childName(n.student_id)}{n.body ? ` · ${n.body}` : ''}
+                  </p>
+                </button>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
 
         <FormModal
           open={!!absenceForm}
