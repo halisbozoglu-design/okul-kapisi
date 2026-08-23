@@ -172,27 +172,54 @@ export default function ParentPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Realtime: RLS remains the only security boundary (payload filters cannot express
+  // guardian scope), but we ignore payloads outside our own children/routes so the
+  // screen does not reload globally on unrelated traffic.
   useEffect(() => {
     if (!user) return;
+    const studentIds = new Set(children.map(c => c.student_id));
+    const routeIds = new Set(assignments.map(a => a.route_id));
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const schedule = () => {
+      if (timer) return;
+      timer = setTimeout(() => { timer = null; load(); }, 800);
+    };
     const channel = supabase
       .channel('parent-transport')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'transport_events' }, () => load())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'transport_trips' }, () => load())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transport_events' }, payload => {
+        const row = (payload.new ?? payload.old) as { student_id?: string | null } | null;
+        if (!row?.student_id || studentIds.has(row.student_id)) schedule();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transport_trips' }, payload => {
+        const row = (payload.new ?? payload.old) as { route_id?: string | null } | null;
+        if (!row?.route_id || routeIds.has(row.route_id)) schedule();
+      })
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [user, load]);
+    return () => {
+      if (timer) clearTimeout(timer);
+      supabase.removeChannel(channel);
+    };
+  }, [user, load, children, assignments]);
 
   const eventsByStudent = useMemo(() => groupEventsByStudent(events), [events]);
 
   const cards = useMemo(() => children.map(child => {
-    const assignment = assignments.find(a => a.student_id === child.student_id) ?? null;
+    const childAssignments = assignments.filter(a => a.student_id === child.student_id);
+    const matches = (a: AssignmentRow, d: TransportDirection) =>
+      a.direction === 'both' || d === 'both' || a.direction === d;
+
+    // Pick the trip whose direction matches one of the child's assignments,
+    // so a morning-only assignment never binds to the return trip (and vice versa).
+    const candidates = trips.filter(t =>
+      childAssignments.some(a => a.route_id === t.route_id && matches(a, t.direction)));
+    const trip = candidates.find(t => t.status === 'active') ?? candidates[0] ?? null;
+
+    const assignment = (trip
+      ? childAssignments.find(a => a.route_id === trip.route_id && matches(a, trip.direction))
+      : null) ?? childAssignments[0] ?? null;
+
     const route = assignment ? routes.find(r => r.id === assignment.route_id) ?? null : null;
     const stop = assignment?.stop_id ? stops.find(s => s.id === assignment.stop_id) ?? null : null;
-    const trip = assignment
-      ? trips.find(t => t.route_id === assignment.route_id && t.status === 'active')
-        ?? trips.find(t => t.route_id === assignment.route_id)
-        ?? null
-      : null;
     const childEvents = (eventsByStudent[child.student_id] ?? []).filter(e => !trip || e.trip_id === trip.id);
     const derived = deriveStudentStatus({
       events: childEvents,
