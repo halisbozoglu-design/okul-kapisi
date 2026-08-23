@@ -62,6 +62,22 @@ const settingsItems: NavItem[] = [
   { title: 'Branşlar', url: '/settings/branches', icon: GitBranch, roles: ['super_admin', 'kurum_yoneticisi', 'okul_yoneticisi'] },
 ];
 
+const TRANSPORT_MANAGERS: AppRole[] = ['super_admin', 'kurum_yoneticisi', 'okul_yoneticisi', 'mudur_yardimcisi'];
+
+const transportItems: NavItem[] = [
+  { title: 'Panel', url: '/transport', icon: Bus, roles: TRANSPORT_MANAGERS },
+  { title: 'Araçlar', url: '/transport/vehicles', icon: Bus, roles: TRANSPORT_MANAGERS },
+  { title: 'Şoför / Rehber', url: '/transport/staff', icon: IdCard, roles: TRANSPORT_MANAGERS },
+  { title: 'Hatlar & Duraklar', url: '/transport/routes', icon: RouteIcon, roles: TRANSPORT_MANAGERS },
+  { title: 'Öğrenci Atama', url: '/transport/students', icon: UserSquare2, roles: TRANSPORT_MANAGERS },
+  { title: 'Canlı Takip', url: '/transport/live', icon: Radio, roles: TRANSPORT_MANAGERS },
+  { title: 'Seferler', url: '/transport/trips', icon: History, roles: TRANSPORT_MANAGERS },
+  {
+    title: 'Şoför Ekranı', url: '/transport/driver', icon: Smartphone,
+    roles: [...TRANSPORT_MANAGERS, 'ogretmen', 'personel'],
+  },
+];
+
 const adminItems: NavItem[] = [
   { title: 'Kullanıcı Yönetimi', url: '/admin/users', icon: Users, roles: ['super_admin'] },
   { title: 'Rol Yönetimi', url: '/admin/roles', icon: Shield, roles: ['super_admin'] },
@@ -78,6 +94,7 @@ export function AppSidebar() {
 
   const visibleMain = filterByRole(mainItems);
   const visibleSettings = filterByRole(settingsItems);
+  const visibleTransport = filterByRole(transportItems);
   const visibleAdmin = filterByRole(adminItems);
 
   return (
