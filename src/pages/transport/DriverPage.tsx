@@ -170,28 +170,36 @@ export default function DriverPage() {
     return true;
   };
 
-  const pushLocation = useCallback(async (s: LocationSample) => {
+  /** Sends a single queued ping. Never throws; returns ok=false so it stays queued. */
+  const sendPing = useCallback(async (p: QueuedPing) => {
+    const { error } = await db.from('location_pings').insert({
+      institution_id: p.institutionId, trip_id: p.tripId,
+      lat: p.lat, lng: p.lng, accuracy: p.accuracy, speed: p.speed, heading: p.heading,
+      recorded_at: p.recordedAt,
+    });
+    if (error) { console.warn('location ping kuyrukta bekliyor', error.message); return { ok: false }; }
+    return { ok: true };
+  }, []);
+
+  /** Flush the device queue for the currently active trip only. */
+  const flushQueue = useCallback(async (s?: LocationSample | null) => {
     const t = tripRef.current;
     if (!t) return;
-    const now = Date.now();
-    const last = lastSentRef.current;
-    if (last) {
-      const elapsed = now - last.at;
-      if (elapsed < MIN_INTERVAL_MS) return;
-      const moved = distanceMeters(last, s);
-      if (moved < MIN_DISTANCE_M && elapsed < FORCE_INTERVAL_MS) return;
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      setPendingCount(await queueRef.current.size(t.id));
+      return;
     }
-    lastSentRef.current = { at: now, lat: s.lat, lng: s.lng };
-    const recordedAt = new Date(s.timestamp).toISOString();
-    const { error } = await db.from('location_pings').insert({
-      institution_id: t.institution_id, trip_id: t.id,
-      lat: s.lat, lng: s.lng, accuracy: s.accuracy, speed: s.speed, heading: s.heading,
-      recorded_at: recordedAt,
-    });
-    if (error) { console.error(error); return; }
+    const res = await queueRef.current.flush(t.id, sendPing);
+    setPendingCount(res.remaining);
+    if (res.failed || res.sent === 0) return;
+    setLastSyncAt(Date.now());
+
+    const latest = s ?? sampleRef.current;
+    if (!latest) return;
+    const recordedAt = new Date(latest.timestamp).toISOString();
     await db.from('transport_trips').update({
-      last_lat: s.lat, last_lng: s.lng, last_accuracy: s.accuracy,
-      last_speed: s.speed, last_heading: s.heading, last_location_at: recordedAt,
+      last_lat: latest.lat, last_lng: latest.lng, last_accuracy: latest.accuracy,
+      last_speed: latest.speed, last_heading: latest.heading, last_location_at: recordedAt,
     }).eq('id', t.id);
 
     // Ask the server (security definer RPC, re-validates everything) to create
@@ -201,9 +209,9 @@ export default function DriverPage() {
       tripId: t.id,
       tripDirection: t.direction,
       tripStatus: 'active',
-      vehicle: { lat: s.lat, lng: s.lng },
+      vehicle: { lat: latest.lat, lng: latest.lng },
       lastLocationAt: recordedAt,
-      lastSpeedMs: s.speed,
+      lastSpeedMs: latest.speed,
       dateKey: toDateKey(new Date()),
       absences: absencesRef.current,
       alreadyRequested: approachRequestedRef.current,
@@ -227,7 +235,33 @@ export default function DriverPage() {
         console.error('notify_transport_approaching failed', rpcError);
       }
     }
-  }, []);
+  }, [sendPing]);
+
+  const pushLocation = useCallback(async (s: LocationSample) => {
+    const t = tripRef.current;
+    if (!t) return;
+    const now = Date.now();
+    const last = lastSentRef.current;
+    if (last) {
+      const elapsed = now - last.at;
+      if (elapsed < MIN_INTERVAL_MS) return;
+      const moved = distanceMeters(last, s);
+      if (moved < MIN_DISTANCE_M && elapsed < FORCE_INTERVAL_MS) return;
+    }
+    lastSentRef.current = { at: now, lat: s.lat, lng: s.lng };
+
+    // Location telemetry only — no student/guardian data, no auth tokens.
+    await queueRef.current.enqueue({
+      tripId: t.id,
+      institutionId: t.institution_id,
+      lat: s.lat, lng: s.lng,
+      accuracy: s.accuracy, speed: s.speed, heading: s.heading,
+      recordedAt: new Date(s.timestamp).toISOString(),
+    });
+    setPendingCount(await queueRef.current.size(t.id));
+    await flushQueue(s);
+  }, [flushQueue]);
+
 
   const startSharing = useCallback(() => {
     setGeoError(null);
