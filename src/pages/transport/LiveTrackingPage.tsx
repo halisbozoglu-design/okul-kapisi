@@ -9,7 +9,7 @@ import 'leaflet/dist/leaflet.css';
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
-import { AlertTriangle, Clock, MapPinOff, PauseCircle, Route as RouteIcon } from 'lucide-react';
+import { AlertTriangle, Clock, MapPinOff, PauseCircle, Route as RouteIcon, Users } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { db } from '@/lib/db';
 import { Route as RouteType, TransportTrip, Vehicle, DIRECTION_LABELS } from '@/types/transport';
@@ -22,6 +22,10 @@ import {
   type SafetySeverity,
   type StopCoord,
 } from '@/lib/transport/safety';
+import {
+  computeOccupancy, formatOccupancy, normalizeCapacity, type OccupancyState,
+} from '@/lib/transport/occupancy';
+import type { OnboardEventLike } from '@/lib/transport/onboard';
 
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: markerIcon2x,
@@ -60,6 +64,7 @@ export default function LiveTrackingPage() {
   const [trail, setTrail] = useState<Ping[]>([]);
   const [samples, setSamples] = useState<Record<string, PingSample[]>>({});
   const [stopsByRoute, setStopsByRoute] = useState<Record<string, StopCoord[]>>({});
+  const [eventsByTrip, setEventsByTrip] = useState<Record<string, OnboardEventLike[]>>({});
   const [now, setNow] = useState(() => Date.now());
   const tripsRef = useRef<TransportTrip[]>([]);
 
@@ -90,6 +95,22 @@ export default function LiveTrackingPage() {
     setSamples(grouped);
   }, []);
 
+  /** Batched roll-call events for every active trip — no student personal data. */
+  const loadEvents = useCallback(async (rows: TransportTrip[]) => {
+    const ids = rows.map(t => t.id);
+    if (!ids.length) { setEventsByTrip({}); return; }
+    const { data } = await db.from('transport_events')
+      .select('trip_id, student_id, event_type, occurred_at, created_at')
+      .in('trip_id', ids)
+      .in('event_type', ['BOARDING', 'NO_SHOW', 'DISEMBARK'])
+      .order('occurred_at', { ascending: true });
+    const grouped: Record<string, OnboardEventLike[]> = {};
+    ((data || []) as (OnboardEventLike & { trip_id: string })[]).forEach(e => {
+      (grouped[e.trip_id] ||= []).push(e);
+    });
+    setEventsByTrip(grouped);
+  }, []);
+
   const loadStops = useCallback(async (rows: TransportTrip[]) => {
     const routeIds = Array.from(new Set(rows.map(t => t.route_id)));
     if (!routeIds.length) { setStopsByRoute({}); return; }
@@ -111,9 +132,9 @@ export default function LiveTrackingPage() {
 
   const refreshAll = useCallback(async () => {
     const rows = await loadTrips();
-    await Promise.all([loadSamples(rows), loadStops(rows)]);
+    await Promise.all([loadSamples(rows), loadStops(rows), loadEvents(rows)]);
     setNow(Date.now());
-  }, [loadTrips, loadSamples, loadStops]);
+  }, [loadTrips, loadSamples, loadStops, loadEvents]);
 
   useEffect(() => {
     const init = async () => {
@@ -155,6 +176,15 @@ export default function LiveTrackingPage() {
     return v ? `${v.service_no} · ${v.plate}` : '-';
   };
 
+  const occupancyByTrip = useMemo(() => {
+    const map: Record<string, OccupancyState> = {};
+    trips.forEach(t => {
+      const cap = normalizeCapacity(vehicles.find(v => v.id === t.vehicle_id)?.capacity ?? null);
+      map[t.id] = computeOccupancy(eventsByTrip[t.id] ?? [], cap);
+    });
+    return map;
+  }, [trips, vehicles, eventsByTrip]);
+
   const alertsByTrip = useMemo(() => {
     const map: Record<string, SafetyAlert[]> = {};
     trips.forEach(t => {
@@ -172,11 +202,14 @@ export default function LiveTrackingPage() {
         },
         pings: samples[t.id] ?? [],
         stops: stopsByRoute[t.route_id] ?? [],
+        occupancy: occupancyByTrip[t.id]
+          ? { count: occupancyByTrip[t.id].count, capacity: occupancyByTrip[t.id].capacity }
+          : undefined,
         now,
       });
     });
     return map;
-  }, [trips, samples, stopsByRoute, now]);
+  }, [trips, samples, stopsByRoute, occupancyByTrip, now]);
 
   const allAlerts = useMemo(() => Object.values(alertsByTrip).flat(), [alertsByTrip]);
   const summary = useMemo(() => summarizeAlerts(allAlerts), [allAlerts]);
@@ -191,6 +224,7 @@ export default function LiveTrackingPage() {
     { key: 'stop', icon: PauseCircle, label: 'Uzun durma', value: summary.longStop },
     { key: 'dev', icon: RouteIcon, label: 'Yaklaşık rota sapması', value: summary.routeDeviation },
     { key: 'delay', icon: Clock, label: 'Gecikme (tahmini)', value: summary.delayed },
+    { key: 'cap', icon: Users, label: 'Kapasite aşımı', value: summary.capacityExceeded },
   ];
 
   return (
@@ -203,7 +237,7 @@ export default function LiveTrackingPage() {
             <AlertTriangle className="h-4 w-4 text-muted-foreground" />
             <h2 className="text-sm font-semibold">Operasyon Uyarıları</h2>
           </div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
             {summaryTiles.map(t => (
               <div key={t.key} className="rounded-md border p-3">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -272,6 +306,9 @@ export default function LiveTrackingPage() {
                     </div>
                   )}
                   <p className="text-xs text-muted-foreground">{vehicleLabel(t.vehicle_id)}</p>
+                  <p className={`text-xs ${occupancyByTrip[t.id]?.isOverflow ? 'font-semibold text-destructive' : ''}`}>
+                    Doluluk: {occupancyByTrip[t.id] ? formatOccupancy(occupancyByTrip[t.id]) : '-'}
+                  </p>
                   <p className="text-xs">
                     Hız: {t.last_speed != null ? `${Math.max(0, t.last_speed * 3.6).toFixed(0)} km/s` : '-'} ·
                     {' '}Doğruluk: {t.last_accuracy != null ? `${t.last_accuracy.toFixed(0)} m` : '-'}
