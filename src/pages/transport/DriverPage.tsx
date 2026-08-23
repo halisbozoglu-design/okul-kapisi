@@ -352,6 +352,8 @@ export default function DriverPage() {
   const endTrip = async () => {
     if (!trip) return;
     setBusy(true);
+    // Try to deliver whatever is still queued for THIS trip before closing it.
+    await flushQueue();
     const endLogged = await logEvent('END_TRIP');
     const { error } = await db.from('transport_trips').update({
       status: 'completed', ended_at: new Date().toISOString(), ended_by: user?.id ?? null,
@@ -360,6 +362,10 @@ export default function DriverPage() {
     if (error) { toast.error(error.message); return; }
     if (!endLogged) toast.warning('Sefer kapandı ancak bitiş kaydı yazılamadı.');
     stopSharing();
+    const stillQueued = await queueRef.current.size(trip.id);
+    if (stillQueued > 0) toast.warning(`${stillQueued} konum kaydı gönderilemedi ve silindi.`);
+    await queueRef.current.clear();
+    setPendingCount(0);
     setTrip(null);
     tripRef.current = null;
     lastSentRef.current = null;
@@ -368,6 +374,7 @@ export default function DriverPage() {
     setAbsences([]);
     toast.success('Sefer tamamlandı');
   };
+
 
   const markStudent = async (studentId: string, type: TransportEventType) => {
     const previous = statuses[studentId];
