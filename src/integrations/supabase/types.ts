@@ -947,6 +947,80 @@ export type Database = {
           },
         ]
       }
+      transport_notifications: {
+        Row: {
+          body: string | null
+          created_at: string
+          guardian_user_id: string
+          id: string
+          idempotency_key: string
+          institution_id: string
+          read_at: string | null
+          student_id: string
+          title: string
+          transport_event_id: string | null
+          trip_id: string | null
+          type: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          guardian_user_id: string
+          id?: string
+          idempotency_key: string
+          institution_id: string
+          read_at?: string | null
+          student_id: string
+          title: string
+          transport_event_id?: string | null
+          trip_id?: string | null
+          type: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          guardian_user_id?: string
+          id?: string
+          idempotency_key?: string
+          institution_id?: string
+          read_at?: string | null
+          student_id?: string
+          title?: string
+          transport_event_id?: string | null
+          trip_id?: string | null
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transport_notifications_institution_id_fkey"
+            columns: ["institution_id"]
+            isOneToOne: false
+            referencedRelation: "institutions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transport_notifications_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transport_notifications_transport_event_id_fkey"
+            columns: ["transport_event_id"]
+            isOneToOne: false
+            referencedRelation: "transport_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transport_notifications_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "transport_trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       transport_settings: {
         Row: {
           created_at: string
@@ -1305,6 +1379,10 @@ export type Database = {
         Returns: boolean
       }
       my_transport_staff_id: { Args: { _user_id: string }; Returns: string }
+      notify_transport_approaching: {
+        Args: { _student_id: string; _trip_id: string }
+        Returns: number
+      }
     }
     Enums: {
       app_role:
