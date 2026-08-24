@@ -90,8 +90,8 @@ const App = () => (
             <Route path="/transport/students" element={<ProtectedRoute requiredPermission={PERMISSIONS.TRANSPORT_MANAGE}><StudentAssignmentsPage /></ProtectedRoute>} />
             <Route path="/transport/live" element={<ProtectedRoute requiredPermission={PERMISSIONS.TRANSPORT_LIVE_TRACK}><LiveTrackingPage /></ProtectedRoute>} />
             <Route path="/transport/trips" element={<ProtectedRoute requiredPermission={PERMISSIONS.TRANSPORT_MANAGE}><TripsPage /></ProtectedRoute>} />
-            {/* Driver access is additionally constrained by transport_staff / trip RLS in the DB. */}
-            <Route path="/transport/driver" element={<ProtectedRoute><DriverPage /></ProtectedRoute>} />
+            {/* Driver route is permission-gated in UX; transport_staff / trip RLS remains authoritative in DB. */}
+            <Route path="/transport/driver" element={<ProtectedRoute requiredPermission={PERMISSIONS.TRANSPORT_DRIVER_OPERATE}><DriverPage /></ProtectedRoute>} />
             <Route path="/transport/parent" element={<ProtectedRoute requiredPermission={PERMISSIONS.TRANSPORT_PARENT_VIEW}><ParentPage /></ProtectedRoute>} />
 
             {/* Security & visitor routes use the same tenant permission source as DB RLS. */}
