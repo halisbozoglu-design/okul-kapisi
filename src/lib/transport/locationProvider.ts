@@ -1,11 +1,7 @@
-/**
- * Location provider abstraction.
- *
- * V1 only ships the browser Geolocation provider (driver's phone, screen on).
- * A native app bridge or a vehicle GPS hardware provider can implement the same
- * interface later without touching the trip/ping persistence code.
- */
+import { Capacitor } from '@capacitor/core';
+import { BackgroundGeolocation } from '@capacitor-community/background-geolocation';
 
+/** Location provider abstraction shared by PWA, Android and iOS. */
 export interface LocationSample {
   lat: number;
   lng: number;
@@ -35,10 +31,10 @@ export interface LocationProvider {
 
 const ERROR_MESSAGES: Record<LocationErrorCode, string> = {
   permission_denied:
-    'Konum izni verilmedi. Tarayıcı ayarlarından bu site için konum iznini açıp tekrar deneyin.',
+    'Konum izni verilmedi. Cihaz ayarlarından MİMAROS için konum iznini açıp tekrar deneyin.',
   unavailable: 'Konum bilgisi alınamıyor. GPS sinyali zayıf olabilir.',
   timeout: 'Konum alınamadı (zaman aşımı). Tekrar deneniyor...',
-  unsupported: 'Bu tarayıcı konum servisini desteklemiyor.',
+  unsupported: 'Bu cihaz konum servisini desteklemiyor.',
 };
 
 export class BrowserGeolocationProvider implements LocationProvider {
@@ -89,6 +85,83 @@ export class BrowserGeolocationProvider implements LocationProvider {
       this.watchId = null;
     }
   }
+}
+
+/**
+ * Native Android/iOS provider.
+ * Android uses a foreground-service notification while a trip is sharing location.
+ * iOS uses the native background location capability once Always/Background permission is granted.
+ */
+export class NativeBackgroundLocationProvider implements LocationProvider {
+  readonly id = 'native-background';
+  private watcherId: string | null = null;
+
+  isSupported() {
+    return Capacitor.isNativePlatform();
+  }
+
+  start(
+    onSample: (sample: LocationSample) => void,
+    onError: (error: LocationProviderError) => void,
+  ) {
+    if (!this.isSupported()) {
+      onError({ code: 'unsupported', message: ERROR_MESSAGES.unsupported });
+      return;
+    }
+
+    void this.stop().finally(async () => {
+      try {
+        this.watcherId = await BackgroundGeolocation.addWatcher(
+          {
+            backgroundMessage: 'MİMAROS servis konumunu sefer boyunca paylaşıyor.',
+            backgroundTitle: 'MİMAROS servis takibi aktif',
+            requestPermissions: true,
+            stale: false,
+            distanceFilter: 10,
+          },
+          (location, error) => {
+            if (error) {
+              const denied = String(error.code ?? '').toUpperCase().includes('DENIED');
+              onError({
+                code: denied ? 'permission_denied' : 'unavailable',
+                message: denied ? ERROR_MESSAGES.permission_denied : (error.message || ERROR_MESSAGES.unavailable),
+              });
+              return;
+            }
+            if (!location) return;
+            onSample({
+              lat: location.latitude,
+              lng: location.longitude,
+              accuracy: location.accuracy ?? null,
+              speed: location.speed ?? null,
+              heading: location.bearing ?? null,
+              timestamp: location.time ?? Date.now(),
+              source: this.id,
+            });
+          },
+        );
+      } catch (error) {
+        onError({
+          code: 'unavailable',
+          message: error instanceof Error ? error.message : ERROR_MESSAGES.unavailable,
+        });
+      }
+    });
+  }
+
+  stop() {
+    const id = this.watcherId;
+    this.watcherId = null;
+    if (!id) return Promise.resolve();
+    return BackgroundGeolocation.removeWatcher({ id }).then(() => undefined).catch(() => undefined);
+  }
+}
+
+/** Native on Android/iOS, browser GPS on web/PWA. */
+export function createLocationProvider(): LocationProvider {
+  return Capacitor.isNativePlatform()
+    ? new NativeBackgroundLocationProvider()
+    : new BrowserGeolocationProvider();
 }
 
 /** Haversine distance in meters. */
