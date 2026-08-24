@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { History } from 'lucide-react';
 import { db } from '@/lib/db';
+import { useInstitution } from '@/hooks/useInstitution';
 import {
   TransportTrip, Route as RouteType, TripStatus, TRIP_STATUS_LABELS,
   DIRECTION_LABELS, EVENT_LABELS, TransportEventType,
@@ -21,6 +22,7 @@ interface EventRow {
 }
 
 export default function TripsPage() {
+  const { institutionId, loading: institutionLoading } = useInstitution();
   const [trips, setTrips] = useState<TransportTrip[]>([]);
   const [routes, setRoutes] = useState<RouteType[]>([]);
   const [status, setStatus] = useState<string>(ALL);
@@ -28,24 +30,39 @@ export default function TripsPage() {
   const [events, setEvents] = useState<EventRow[]>([]);
 
   useEffect(() => {
+    if (institutionLoading) return;
+    if (!institutionId) {
+      setTrips([]);
+      setRoutes([]);
+      return;
+    }
+
     const load = async () => {
-      let q = db.from('transport_trips').select('*').is('deleted_at', null)
+      let q = db.from('transport_trips').select('*')
+        .eq('institution_id', institutionId)
+        .is('deleted_at', null)
         .order('started_at', { ascending: false }).limit(200);
       if (status !== ALL) q = q.eq('status', status);
       const [{ data: t }, { data: r }] = await Promise.all([
-        q, db.from('routes').select('*').is('deleted_at', null),
+        q,
+        db.from('routes').select('*')
+          .eq('institution_id', institutionId)
+          .is('deleted_at', null),
       ]);
       setTrips((t || []) as TransportTrip[]);
       setRoutes((r || []) as RouteType[]);
     };
-    load();
-  }, [status]);
+    void load();
+  }, [status, institutionId, institutionLoading]);
 
   const openDetail = async (trip: TransportTrip) => {
+    if (!institutionId || trip.institution_id !== institutionId) return;
     setDetail(trip);
     const { data } = await db.from('transport_events')
       .select('id, event_type, occurred_at, student_id, students(first_name,last_name)')
-      .eq('trip_id', trip.id).order('occurred_at', { ascending: true });
+      .eq('institution_id', institutionId)
+      .eq('trip_id', trip.id)
+      .order('occurred_at', { ascending: true });
     setEvents((data || []) as EventRow[]);
   };
 
