@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { PERMISSIONS } from "@/lib/auth/permissions";
 
 import LoginPage from "./pages/auth/LoginPage";
 import RegisterPage from "./pages/auth/RegisterPage";
@@ -43,8 +44,6 @@ import StudentDutyPage from "./pages/security/StudentDutyPage";
 
 const queryClient = new QueryClient();
 
-const ADMIN_ROLES = ['super_admin', 'kurum_yoneticisi', 'okul_yoneticisi'] as const;
-const TRANSPORT_ROLES = ['super_admin', 'kurum_yoneticisi', 'okul_yoneticisi', 'mudur_yardimcisi'] as const;
 const SECURITY_OPERATORS = ['super_admin', 'kurum_yoneticisi', 'okul_yoneticisi', 'mudur_yardimcisi', 'personel'] as const;
 const SECURITY_MANAGERS = ['super_admin', 'kurum_yoneticisi', 'okul_yoneticisi', 'mudur_yardimcisi'] as const;
 
@@ -66,31 +65,31 @@ const App = () => (
             <Route path="/no-role" element={<NoRolePage />} />
             <Route path="/unauthorized" element={<UnauthorizedPage />} />
 
-            {/* Protected routes */}
             <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
-            
-            {/* Settings routes - admin only */}
-            <Route path="/settings/institutions" element={<ProtectedRoute requiredRoles={['super_admin', 'kurum_yoneticisi']}><InstitutionsPage /></ProtectedRoute>} />
-            <Route path="/settings/campuses" element={<ProtectedRoute requiredRoles={[...ADMIN_ROLES]}><CampusesPage /></ProtectedRoute>} />
-            <Route path="/settings/academic-years" element={<ProtectedRoute requiredRoles={[...ADMIN_ROLES]}><AcademicYearsPage /></ProtectedRoute>} />
-            <Route path="/settings/terms" element={<ProtectedRoute requiredRoles={[...ADMIN_ROLES]}><TermsPage /></ProtectedRoute>} />
-            <Route path="/settings/grade-levels" element={<ProtectedRoute requiredRoles={[...ADMIN_ROLES]}><GradeLevelsPage /></ProtectedRoute>} />
-            <Route path="/settings/sections" element={<ProtectedRoute requiredRoles={[...ADMIN_ROLES]}><SectionsPage /></ProtectedRoute>} />
-            <Route path="/settings/classrooms" element={<ProtectedRoute requiredRoles={[...ADMIN_ROLES]}><ClassroomsPage /></ProtectedRoute>} />
-            <Route path="/settings/branches" element={<ProtectedRoute requiredRoles={[...ADMIN_ROLES]}><BranchesPage /></ProtectedRoute>} />
 
-            {/* Transport module */}
-            <Route path="/transport" element={<ProtectedRoute requiredRoles={[...TRANSPORT_ROLES]}><TransportDashboardPage /></ProtectedRoute>} />
-            <Route path="/transport/vehicles" element={<ProtectedRoute requiredRoles={[...TRANSPORT_ROLES]}><VehiclesPage /></ProtectedRoute>} />
-            <Route path="/transport/staff" element={<ProtectedRoute requiredRoles={[...TRANSPORT_ROLES]}><TransportStaffPage /></ProtectedRoute>} />
-            <Route path="/transport/routes" element={<ProtectedRoute requiredRoles={[...TRANSPORT_ROLES]}><RoutesPage /></ProtectedRoute>} />
-            <Route path="/transport/students" element={<ProtectedRoute requiredRoles={[...TRANSPORT_ROLES]}><StudentAssignmentsPage /></ProtectedRoute>} />
-            <Route path="/transport/live" element={<ProtectedRoute requiredRoles={[...TRANSPORT_ROLES]}><LiveTrackingPage /></ProtectedRoute>} />
-            <Route path="/transport/trips" element={<ProtectedRoute requiredRoles={[...TRANSPORT_ROLES]}><TripsPage /></ProtectedRoute>} />
+            {/* Institution/access administration is distinct from operational module management. */}
+            <Route path="/settings/institutions" element={<ProtectedRoute requiredPermission={PERMISSIONS.ACCESS_MANAGE}><InstitutionsPage /></ProtectedRoute>} />
+            <Route path="/settings/campuses" element={<ProtectedRoute requiredPermission={PERMISSIONS.SETTINGS_MANAGE}><CampusesPage /></ProtectedRoute>} />
+            <Route path="/settings/academic-years" element={<ProtectedRoute requiredPermission={PERMISSIONS.SETTINGS_MANAGE}><AcademicYearsPage /></ProtectedRoute>} />
+            <Route path="/settings/terms" element={<ProtectedRoute requiredPermission={PERMISSIONS.SETTINGS_MANAGE}><TermsPage /></ProtectedRoute>} />
+            <Route path="/settings/grade-levels" element={<ProtectedRoute requiredPermission={PERMISSIONS.SETTINGS_MANAGE}><GradeLevelsPage /></ProtectedRoute>} />
+            <Route path="/settings/sections" element={<ProtectedRoute requiredPermission={PERMISSIONS.SETTINGS_MANAGE}><SectionsPage /></ProtectedRoute>} />
+            <Route path="/settings/classrooms" element={<ProtectedRoute requiredPermission={PERMISSIONS.SETTINGS_MANAGE}><ClassroomsPage /></ProtectedRoute>} />
+            <Route path="/settings/branches" element={<ProtectedRoute requiredPermission={PERMISSIONS.SETTINGS_MANAGE}><BranchesPage /></ProtectedRoute>} />
+
+            {/* Transport module: route UX follows DB-backed module permissions. */}
+            <Route path="/transport" element={<ProtectedRoute requiredPermission={PERMISSIONS.TRANSPORT_VIEW}><TransportDashboardPage /></ProtectedRoute>} />
+            <Route path="/transport/vehicles" element={<ProtectedRoute requiredPermission={PERMISSIONS.TRANSPORT_MANAGE}><VehiclesPage /></ProtectedRoute>} />
+            <Route path="/transport/staff" element={<ProtectedRoute requiredPermission={PERMISSIONS.TRANSPORT_MANAGE}><TransportStaffPage /></ProtectedRoute>} />
+            <Route path="/transport/routes" element={<ProtectedRoute requiredPermission={PERMISSIONS.TRANSPORT_MANAGE}><RoutesPage /></ProtectedRoute>} />
+            <Route path="/transport/students" element={<ProtectedRoute requiredPermission={PERMISSIONS.TRANSPORT_MANAGE}><StudentAssignmentsPage /></ProtectedRoute>} />
+            <Route path="/transport/live" element={<ProtectedRoute requiredPermission={PERMISSIONS.TRANSPORT_LIVE_TRACK}><LiveTrackingPage /></ProtectedRoute>} />
+            <Route path="/transport/trips" element={<ProtectedRoute requiredPermission={PERMISSIONS.TRANSPORT_MANAGE}><TripsPage /></ProtectedRoute>} />
+            {/* Driver access is additionally constrained by transport_staff / trip RLS in the DB. */}
             <Route path="/transport/driver" element={<ProtectedRoute><DriverPage /></ProtectedRoute>} />
-            <Route path="/transport/parent" element={<ProtectedRoute requiredRoles={['veli', 'super_admin', 'kurum_yoneticisi', 'okul_yoneticisi']}><ParentPage /></ProtectedRoute>} />
+            <Route path="/transport/parent" element={<ProtectedRoute requiredPermission={PERMISSIONS.TRANSPORT_PARENT_VIEW}><ParentPage /></ProtectedRoute>} />
 
-            {/* Güvenlik & Ziyaretçi */}
+            {/* Güvenlik & Ziyaretçi: next module to migrate to the same permission matrix. */}
             <Route path="/security/visitors/check-in" element={<ProtectedRoute requiredRoles={[...SECURITY_OPERATORS]}><SecurityCheckInPage /></ProtectedRoute>} />
             <Route path="/security/visitors/inside" element={<ProtectedRoute requiredRoles={[...SECURITY_OPERATORS]}><VisitorsInsidePage /></ProtectedRoute>} />
             <Route path="/security/visitors/ledger" element={<ProtectedRoute requiredRoles={[...SECURITY_OPERATORS]}><VisitorLedgerPage /></ProtectedRoute>} />
