@@ -77,6 +77,7 @@ const rpcErrorMessage = (message: string) => {
   if (message.includes('TARGET_NOT_ACTIVE_MEMBER')) return 'Rol vermeden önce kurum üyeliğini etkinleştirin.';
   if (message.includes('ROLE_EXPIRY_MUST_BE_FUTURE')) return 'Rol bitiş tarihi gelecekte olmalıdır.';
   if (message.includes('SUPER_ADMIN_IS_GLOBAL_ONLY')) return 'Super admin tenant rolü olarak atanamaz.';
+  if (message.includes('MEMBERSHIP_NOT_FOUND')) return 'Kurum üyeliği bulunamadı.';
   return message;
 };
 
@@ -206,15 +207,17 @@ export default function AccessManagementPage() {
   };
 
   const toggleMembership = async (member: MemberView) => {
+    if (!institutionId) return;
     setBusy(true);
     const next = !member.is_active;
-    const { error } = await db.from('user_institutions')
-      .update({ is_active: next, is_default: next ? member.is_default : false, updated_at: new Date().toISOString() })
-      .eq('id', member.id)
-      .eq('institution_id', member.institution_id);
+    const { error } = await db.rpc('set_institution_membership_active', {
+      _institution_id: institutionId,
+      _target_user_id: member.user_id,
+      _active: next,
+    });
     setBusy(false);
     if (error) {
-      toast.error(`Üyelik güncellenemedi: ${error.message}`);
+      toast.error(`Üyelik güncellenemedi: ${rpcErrorMessage(error.message)}`);
       return;
     }
     toast.success(next ? 'Kurum üyeliği etkinleştirildi.' : 'Kurum üyeliği pasifleştirildi.');
