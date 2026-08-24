@@ -12,6 +12,9 @@ on:
       - 'capacitor.config.ts'
       - '.github/workflows/android-apk.yml'
 
+permissions:
+  contents: write
+
 jobs:
   build-android:
     runs-on: ubuntu-latest
@@ -47,18 +50,39 @@ jobs:
           cd android
           ./gradlew assembleDebug bundleDebug
 
-      - name: Upload Android APK
+      - name: Prepare stable download names
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk MIMAROS-Android-Test.apk
+          cp android/app/build/outputs/bundle/debug/app-debug.aab MIMAROS-Android-Test.aab
+
+      - name: Upload Android APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: mimaros-android-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: MIMAROS-Android-Test.apk
           if-no-files-found: error
 
-      - name: Upload Android AAB
+      - name: Upload Android AAB artifact
         uses: actions/upload-artifact@v4
         with:
           name: mimaros-android-aab
-          path: android/app/build/outputs/bundle/debug/app-debug.aab
+          path: MIMAROS-Android-Test.aab
           if-no-files-found: error
 
-# build-trigger: 2026-08-24T12:45+03:00
+      - name: Publish stable Android test download
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-test-latest
+          name: MİMAROS Android Test
+          prerelease: true
+          make_latest: false
+          files: |
+            MIMAROS-Android-Test.apk
+            MIMAROS-Android-Test.aab
+          overwrite_files: true
+          body: |
+            MİMAROS Android gerçek cihaz test paketi.
+            APK telefona doğrudan kurulabilir. AAB mağaza/test dağıtımı içindir.
+            Bu sürüm main dalındaki en güncel Android test build'idir.
+
+# build-trigger: 2026-08-24T12:48+03:00
