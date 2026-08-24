@@ -9,6 +9,19 @@ import { registerMobileDevice } from '@/lib/mobile/deviceRegistration';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const rawDb = supabase as any;
 
+type DeviceRegistrar = (input: { institutionId: string }) => Promise<string>;
+
+export async function bindLocationPingDevice(
+  row: unknown,
+  registrar: DeviceRegistrar = registerMobileDevice,
+) {
+  if (!row || typeof row !== 'object') return row;
+  const value = row as Record<string, unknown>;
+  if (value.device_id || typeof value.institution_id !== 'string') return value;
+  const deviceId = await registrar({ institutionId: value.institution_id });
+  return { ...value, device_id: deviceId };
+}
+
 /**
  * Location telemetry must be attributable to the authenticated installation.
  * The database still validates tenant/user/device ownership through RLS; this
@@ -21,13 +34,7 @@ function locationPingsBuilder() {
       if (prop !== 'insert') return Reflect.get(target, prop, receiver);
       return async (values: unknown, options?: unknown) => {
         const rows = Array.isArray(values) ? values : [values];
-        const boundRows = await Promise.all(rows.map(async row => {
-          if (!row || typeof row !== 'object') return row;
-          const value = row as Record<string, unknown>;
-          if (value.device_id || typeof value.institution_id !== 'string') return value;
-          const deviceId = await registerMobileDevice({ institutionId: value.institution_id });
-          return { ...value, device_id: deviceId };
-        }));
+        const boundRows = await Promise.all(rows.map(row => bindLocationPingDevice(row)));
         return target.insert(Array.isArray(values) ? boundRows : boundRows[0], options);
       };
     },
