@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Copy, Link2, RefreshCw, UserPlus, UserRoundCheck, UserRoundX, X } from 'lucide-react';
+import { Copy, Link2, RefreshCw, ShieldCheck, ShieldOff, UserPlus, UserRoundCheck, UserRoundX, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { db } from '@/lib/db';
 import { useInstitution } from '@/hooks/useInstitution';
@@ -25,6 +25,8 @@ const ASSIGNABLE_ROLES: { value: Exclude<AppRole, 'super_admin'>; label: string 
   { value: 'ogrenci', label: 'Öğrenci' },
   { value: 'personel', label: 'Personel' },
 ];
+
+type AssignableRole = Exclude<AppRole, 'super_admin'>;
 
 interface ProfileRow {
   user_id: string;
@@ -69,6 +71,15 @@ interface MemberView extends MembershipRow {
 const roleLabel = (role: AppRole) =>
   ASSIGNABLE_ROLES.find((x) => x.value === role)?.label ?? role;
 
+const rpcErrorMessage = (message: string) => {
+  if (message.includes('NOT_AUTHORIZED_FOR_MEMBER')) return 'Bu kullanıcı üzerinde yetki değişikliği yapamazsınız.';
+  if (message.includes('NOT_AUTHORIZED_FOR_ROLE')) return 'Bu rolü atama yetkiniz yok.';
+  if (message.includes('TARGET_NOT_ACTIVE_MEMBER')) return 'Rol vermeden önce kurum üyeliğini etkinleştirin.';
+  if (message.includes('ROLE_EXPIRY_MUST_BE_FUTURE')) return 'Rol bitiş tarihi gelecekte olmalıdır.';
+  if (message.includes('SUPER_ADMIN_IS_GLOBAL_ONLY')) return 'Super admin tenant rolü olarak atanamaz.';
+  return message;
+};
+
 export default function AccessManagementPage() {
   const { institutionId, loading: institutionLoading } = useInstitution();
   const [members, setMembers] = useState<MemberView[]>([]);
@@ -76,8 +87,10 @@ export default function AccessManagementPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [email, setEmail] = useState('');
-  const [role, setRole] = useState<Exclude<AppRole, 'super_admin'>>('ogretmen');
+  const [role, setRole] = useState<AssignableRole>('ogretmen');
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
+  const [roleDrafts, setRoleDrafts] = useState<Record<string, AssignableRole>>({});
+  const [expiryDrafts, setExpiryDrafts] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     if (!institutionId) {
@@ -88,7 +101,7 @@ export default function AccessManagementPage() {
     }
 
     setLoading(true);
-    const [{ data: membershipData, error: membershipError }, { data: roleData }, { data: inviteData }] = await Promise.all([
+    const [{ data: membershipData, error: membershipError }, { data: roleData, error: roleError }, { data: inviteData, error: inviteError }] = await Promise.all([
       db.from('user_institutions')
         .select('id,user_id,institution_id,is_active,is_default,created_at')
         .eq('institution_id', institutionId)
@@ -107,6 +120,8 @@ export default function AccessManagementPage() {
       setLoading(false);
       return;
     }
+    if (roleError) toast.error(`Roller alınamadı: ${roleError.message}`);
+    if (inviteError) toast.error(`Davetler alınamadı: ${inviteError.message}`);
 
     const memberships = (membershipData ?? []) as MembershipRow[];
     const userIds = memberships.map((x) => x.user_id);
@@ -206,6 +221,36 @@ export default function AccessManagementPage() {
     await load();
   };
 
+  const setTenantRole = async (
+    member: MemberView,
+    targetRole: AssignableRole,
+    active: boolean,
+    expiresAt?: string,
+  ) => {
+    if (!institutionId) return;
+    setBusy(true);
+    const { error } = await db.rpc('set_institution_user_role', {
+      _institution_id: institutionId,
+      _target_user_id: member.user_id,
+      _role: targetRole,
+      _active: active,
+      _expires_at: active && expiresAt ? new Date(expiresAt).toISOString() : null,
+    });
+    setBusy(false);
+    if (error) {
+      toast.error(`Rol güncellenemedi: ${rpcErrorMessage(error.message)}`);
+      return;
+    }
+    toast.success(active ? `${roleLabel(targetRole)} rolü etkinleştirildi.` : `${roleLabel(targetRole)} rolü pasifleştirildi.`);
+    await load();
+  };
+
+  const saveRoleDraft = async (member: MemberView) => {
+    const draftRole = roleDrafts[member.id] ?? 'ogretmen';
+    const expiry = expiryDrafts[member.id] ?? '';
+    await setTenantRole(member, draftRole, true, expiry || undefined);
+  };
+
   if (institutionLoading) {
     return <div className="flex min-h-screen items-center justify-center"><RefreshCw className="h-6 w-6 animate-spin" /></div>;
   }
@@ -230,7 +275,7 @@ export default function AccessManagementPage() {
           <Card>
             <CardHeader>
               <CardTitle>Kurum Üyeleri</CardTitle>
-              <CardDescription>Pasif üyelikler veri erişimi vermez; gerçek erişim RLS tarafından uygulanır.</CardDescription>
+              <CardDescription>Üyelik ve rol değişiklikleri tenant hiyerarşisi ile korunur; gerçek erişim RLS/RPC tarafından uygulanır.</CardDescription>
             </CardHeader>
             <CardContent>
               {loading ? (
@@ -241,24 +286,66 @@ export default function AccessManagementPage() {
                 <div className="space-y-3">
                   {members.map((member) => {
                     const name = [member.profile?.first_name, member.profile?.last_name].filter(Boolean).join(' ') || 'İsimsiz kullanıcı';
+                    const selectedRole = roleDrafts[member.id] ?? 'ogretmen';
                     return (
                       <div key={member.id} className="rounded-lg border p-4">
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                          <div className="min-w-0">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-2">
                               <p className="font-medium">{name}</p>
                               <Badge variant={member.is_active ? 'default' : 'secondary'}>{member.is_active ? 'Aktif' : 'Pasif'}</Badge>
                               {member.is_default && <Badge variant="outline">Varsayılan kurum</Badge>}
                             </div>
                             <p className="mt-1 text-xs text-muted-foreground">{member.user_id}</p>
-                            <div className="mt-2 flex flex-wrap gap-1">
+
+                            <div className="mt-3 flex flex-wrap gap-2">
                               {member.roles.length ? member.roles.map((r) => (
-                                <Badge key={r.id} variant={r.is_active ? 'outline' : 'secondary'}>
-                                  {roleLabel(r.role)}{!r.is_active ? ' · pasif' : ''}{r.expires_at ? ' · süreli' : ''}
-                                </Badge>
+                                <div key={r.id} className="flex items-center gap-1 rounded-md border px-2 py-1">
+                                  <Badge variant={r.is_active ? 'outline' : 'secondary'} className="border-0 p-0">
+                                    {roleLabel(r.role)}{!r.is_active ? ' · pasif' : ''}{r.expires_at ? ` · ${new Date(r.expires_at).toLocaleDateString('tr-TR')}` : ''}
+                                  </Badge>
+                                  {r.role !== 'super_admin' && (
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-6 w-6"
+                                      disabled={busy || !member.is_active}
+                                      aria-label={r.is_active ? 'Rolü pasifleştir' : 'Rolü etkinleştir'}
+                                      onClick={() => void setTenantRole(member, r.role as AssignableRole, !r.is_active, r.expires_at ?? undefined)}
+                                    >
+                                      {r.is_active ? <ShieldOff className="h-3.5 w-3.5" /> : <ShieldCheck className="h-3.5 w-3.5" />}
+                                    </Button>
+                                  )}
+                                </div>
                               )) : <span className="text-xs text-muted-foreground">Tenant rolü yok</span>}
                             </div>
+
+                            <div className="mt-4 grid gap-2 md:grid-cols-[minmax(160px,1fr)_190px_auto]">
+                              <Select
+                                value={selectedRole}
+                                onValueChange={(value) => setRoleDrafts((prev) => ({ ...prev, [member.id]: value as AssignableRole }))}
+                                disabled={busy || !member.is_active}
+                              >
+                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  {ASSIGNABLE_ROLES.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                              <Input
+                                type="datetime-local"
+                                value={expiryDrafts[member.id] ?? ''}
+                                onChange={(event) => setExpiryDrafts((prev) => ({ ...prev, [member.id]: event.target.value }))}
+                                disabled={busy || !member.is_active}
+                                aria-label="Rol bitiş tarihi"
+                              />
+                              <Button type="button" variant="outline" disabled={busy || !member.is_active} onClick={() => void saveRoleDraft(member)}>
+                                <ShieldCheck className="mr-2 h-4 w-4" />Rolü Uygula
+                              </Button>
+                            </div>
+                            <p className="mt-1 text-xs text-muted-foreground">Bitiş tarihi boş bırakılırsa rol süresizdir.</p>
                           </div>
+
                           <Button variant={member.is_active ? 'destructive' : 'outline'} size="sm" onClick={() => void toggleMembership(member)} disabled={busy}>
                             {member.is_active ? <UserRoundX className="mr-2 h-4 w-4" /> : <UserRoundCheck className="mr-2 h-4 w-4" />}
                             {member.is_active ? 'Pasifleştir' : 'Etkinleştir'}
@@ -286,7 +373,7 @@ export default function AccessManagementPage() {
                   </div>
                   <div className="space-y-2">
                     <Label>Rol</Label>
-                    <Select value={role} onValueChange={(value) => setRole(value as Exclude<AppRole, 'super_admin'>)}>
+                    <Select value={role} onValueChange={(value) => setRole(value as AssignableRole)}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {ASSIGNABLE_ROLES.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}
