@@ -55,6 +55,10 @@ const mainItems: NavItem[] = [
   { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard },
 ];
 
+const adminItems: NavItem[] = [
+  { title: 'Kullanıcı & Yetki', url: '/admin/access', icon: Users, permission: PERMISSIONS.ACCESS_MANAGE },
+];
+
 const settingsItems: NavItem[] = [
   { title: 'Kurumlar', url: '/settings/institutions', icon: Building2, permission: PERMISSIONS.ACCESS_MANAGE },
   { title: 'Kampüsler', url: '/settings/campuses', icon: School, permission: PERMISSIONS.SETTINGS_MANAGE },
@@ -99,17 +103,8 @@ const securityItems: NavItem[] = [
   { title: 'Nöbetçi Öğrenci', url: '/security/student-duty', icon: ShieldCheck, roles: [...SECURITY_MANAGERS, 'ogretmen'] },
 ];
 
-function NavGroup({
-  label,
-  items,
-  collapsed,
-}: {
-  label: string;
-  items: NavItem[];
-  collapsed: boolean;
-}) {
+function NavGroup({ label, items, collapsed }: { label: string; items: NavItem[]; collapsed: boolean }) {
   if (!items.length) return null;
-
   return (
     <SidebarGroup>
       <SidebarGroupLabel>{label}</SidebarGroupLabel>
@@ -139,15 +134,13 @@ function NavGroup({
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
-  useLocation(); // keeps active NavLink rendering in sync with route changes
+  useLocation();
   const { hasAnyRole } = useAuth();
   const { hasPermission, hasTenantRole, loading: authorizationLoading } = useAuthorization();
 
   const canSee = (item: NavItem) => {
     if (item.permission && !hasPermission(item.permission.resource, item.permission.action)) return false;
     if (item.roles?.length) {
-      // Prefer tenant-scoped roles; legacy roles are only a compatibility fallback
-      // while the authorization migration is not yet deployed.
       return item.roles.some((role) => hasTenantRole(role)) || hasAnyRole(item.roles);
     }
     return true;
@@ -156,6 +149,7 @@ export function AppSidebar() {
   const filterItems = (items: NavItem[]) => (authorizationLoading ? [] : items.filter(canSee));
 
   const visibleMain = filterItems(mainItems);
+  const visibleAdmin = filterItems(adminItems);
   const visibleSettings = filterItems(settingsItems);
   const visibleTransport = filterItems(transportItems);
   const visibleSecurity = filterItems(securityItems);
@@ -175,6 +169,7 @@ export function AppSidebar() {
         </div>
 
         <NavGroup label="Ana Menü" items={visibleMain} collapsed={collapsed} />
+        <NavGroup label="Yönetim" items={visibleAdmin} collapsed={collapsed} />
         <NavGroup label="Kurum Ayarları" items={visibleSettings} collapsed={collapsed} />
         <NavGroup label="Servis Yönetimi" items={visibleTransport} collapsed={collapsed} />
         <NavGroup label="Güvenlik & Ziyaretçi" items={visibleSecurity} collapsed={collapsed} />
