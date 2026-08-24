@@ -14,7 +14,7 @@ export interface QueuedPing {
   tripId: string;
   institutionId: string;
   /** server-side mobile_device_registrations.id when available */
-  deviceId: string | null;
+  deviceId?: string | null;
   lat: number;
   lng: number;
   accuracy: number | null;
@@ -149,7 +149,6 @@ export class LocationQueue {
     this.seq += 1;
     await this.store.put({ ...ping, id: `${queuedAt}-${this.seq}`, queuedAt });
 
-    // bounded: drop the oldest entries beyond the cap
     const after = await this.store.getAll();
     if (after.length > MAX_QUEUE_SIZE) {
       const overflow = after.slice(0, after.length - MAX_QUEUE_SIZE).map(r => r.id);
@@ -163,7 +162,6 @@ export class LocationQueue {
     return tripId ? rows.filter(r => r.tripId === tripId).length : rows.length;
   }
 
-  /** Remove every queued ping that does not belong to `tripId`. */
   async dropOtherTrips(tripId: string | null) {
     const rows = await this.store.getAll();
     const stale = rows.filter(r => r.tripId !== tripId).map(r => r.id);
@@ -173,10 +171,6 @@ export class LocationQueue {
 
   async clear() { await this.store.clear(); }
 
-  /**
-   * Send queued pings for a single trip, oldest first. Stops at the first
-   * failure so ordering is preserved and nothing is lost.
-   */
   async flush(tripId: string, send: PingSender): Promise<FlushResult> {
     if (this.flushing) return { sent: 0, failed: false, remaining: await this.size(tripId) };
     this.flushing = true;
