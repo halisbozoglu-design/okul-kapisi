@@ -8,6 +8,13 @@ export const PERMISSIONS = {
   TRANSPORT_LIVE_TRACK: { resource: 'transport', action: 'live_track' },
   TRANSPORT_DRIVER_OPERATE: { resource: 'transport.driver', action: 'operate' },
   TRANSPORT_PARENT_VIEW: { resource: 'transport.parent', action: 'view' },
+  TRANSPORT_VEHICLE_MANAGE: { resource: 'transport.vehicle', action: 'manage' },
+  TRANSPORT_STAFF_MANAGE: { resource: 'transport.staff', action: 'manage' },
+  TRANSPORT_ROUTE_MANAGE: { resource: 'transport.route', action: 'manage' },
+  TRANSPORT_ASSIGNMENT_MANAGE: { resource: 'transport.assignment', action: 'manage' },
+  TRANSPORT_TRIP_MANAGE: { resource: 'transport.trip', action: 'manage' },
+  TRANSPORT_SETTINGS_MANAGE: { resource: 'transport.settings', action: 'manage' },
+  TRANSPORT_ABSENCE_MANAGE: { resource: 'transport.absence', action: 'manage' },
   SECURITY_OPERATE: { resource: 'security', action: 'operate' },
   SECURITY_MANAGE: { resource: 'security', action: 'manage' },
   SECURITY_STUDENT_DUTY_VIEW: { resource: 'security.student_duty', action: 'view' },
@@ -16,6 +23,13 @@ export const PERMISSIONS = {
 
 export type PermissionKey = `${string}:${string}`;
 
+const TRANSPORT_MANAGER_PERMISSION_KEYS: readonly PermissionKey[] = [
+  'transport:view', 'transport:manage', 'transport:live_track', 'transport.driver:operate',
+  'transport.vehicle:manage', 'transport.staff:manage', 'transport.route:manage',
+  'transport.assignment:manage', 'transport.trip:manage', 'transport.settings:manage',
+  'transport.absence:manage',
+];
+
 /**
  * Temporary compatibility matrix used only when get_my_access_context is not
  * available yet. DB RLS/RPC is still authoritative for data access.
@@ -23,24 +37,24 @@ export type PermissionKey = `${string}:${string}`;
 export const LEGACY_ROLE_PERMISSIONS: Partial<Record<AppRole, readonly PermissionKey[]>> = {
   super_admin: [
     'users:manage', 'settings:manage',
-    'transport:view', 'transport:manage', 'transport:live_track', 'transport.driver:operate', 'transport.parent:view',
+    ...TRANSPORT_MANAGER_PERMISSION_KEYS, 'transport.parent:view',
     'security:operate', 'security:manage', 'security.student_duty:view',
     'audit:view',
   ],
   kurum_yoneticisi: [
     'users:manage', 'settings:manage',
-    'transport:view', 'transport:manage', 'transport:live_track', 'transport.driver:operate',
+    ...TRANSPORT_MANAGER_PERMISSION_KEYS,
     'security:operate', 'security:manage', 'security.student_duty:view',
     'audit:view',
   ],
   okul_yoneticisi: [
     'users:manage', 'settings:manage',
-    'transport:view', 'transport:manage', 'transport:live_track', 'transport.driver:operate',
+    ...TRANSPORT_MANAGER_PERMISSION_KEYS,
     'security:operate', 'security:manage', 'security.student_duty:view',
     'audit:view',
   ],
   mudur_yardimcisi: [
-    'transport:view', 'transport:manage', 'transport:live_track', 'transport.driver:operate',
+    ...TRANSPORT_MANAGER_PERMISSION_KEYS,
     'security:operate', 'security:manage', 'security.student_duty:view',
   ],
   ogretmen: ['security.student_duty:view'],
