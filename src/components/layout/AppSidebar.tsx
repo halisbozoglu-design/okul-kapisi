@@ -73,12 +73,12 @@ const settingsItems: NavItem[] = [
 
 const transportItems: NavItem[] = [
   { title: 'Panel', url: '/transport', icon: Bus, permission: PERMISSIONS.TRANSPORT_VIEW },
-  { title: 'Araçlar', url: '/transport/vehicles', icon: Bus, permission: PERMISSIONS.TRANSPORT_MANAGE },
-  { title: 'Şoför / Rehber', url: '/transport/staff', icon: IdCard, permission: PERMISSIONS.TRANSPORT_MANAGE },
-  { title: 'Hatlar & Duraklar', url: '/transport/routes', icon: RouteIcon, permission: PERMISSIONS.TRANSPORT_MANAGE },
-  { title: 'Öğrenci Atama', url: '/transport/students', icon: UserSquare2, permission: PERMISSIONS.TRANSPORT_MANAGE },
+  { title: 'Araçlar', url: '/transport/vehicles', icon: Bus, permission: PERMISSIONS.TRANSPORT_VEHICLE_MANAGE },
+  { title: 'Şoför / Rehber', url: '/transport/staff', icon: IdCard, permission: PERMISSIONS.TRANSPORT_STAFF_MANAGE },
+  { title: 'Hatlar & Duraklar', url: '/transport/routes', icon: RouteIcon, permission: PERMISSIONS.TRANSPORT_ROUTE_MANAGE },
+  { title: 'Öğrenci Atama', url: '/transport/students', icon: UserSquare2, permission: PERMISSIONS.TRANSPORT_ASSIGNMENT_MANAGE },
   { title: 'Canlı Takip', url: '/transport/live', icon: Radio, permission: PERMISSIONS.TRANSPORT_LIVE_TRACK },
-  { title: 'Seferler', url: '/transport/trips', icon: History, permission: PERMISSIONS.TRANSPORT_MANAGE },
+  { title: 'Seferler', url: '/transport/trips', icon: History, permission: PERMISSIONS.TRANSPORT_TRIP_MANAGE },
   { title: 'Şoför Ekranı', url: '/transport/driver', icon: Smartphone, permission: PERMISSIONS.TRANSPORT_DRIVER_OPERATE },
   { title: 'Veli Servis Takibi', url: '/transport/parent', icon: UserSquare2, permission: PERMISSIONS.TRANSPORT_PARENT_VIEW },
 ];
