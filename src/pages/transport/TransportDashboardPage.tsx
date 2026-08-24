@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AdminLayout } from '@/components/layout/AdminLayout';
 import { PageHeader } from '@/components/common/PageHeader';
@@ -10,6 +10,8 @@ import { Bus, Route as RouteIcon, Users, Radio, Smartphone, FlaskConical, Calend
 import { toast } from 'sonner';
 import { db } from '@/lib/db';
 import { useInstitution } from '@/hooks/useInstitution';
+import { useAuthorization } from '@/hooks/useAuthorization';
+import { PERMISSIONS } from '@/lib/auth/permissions';
 import { ABSENCE_DIRECTION_LABELS, TransportAbsence, toDateKey } from '@/lib/transport/absences';
 
 interface AbsenceRow extends TransportAbsence {
@@ -20,41 +22,56 @@ interface Stats { vehicles: number; routes: number; students: number; activeTrip
 
 export default function TransportDashboardPage() {
   const { institutionId } = useInstitution();
+  const { hasPermission, loading: authorizationLoading } = useAuthorization();
   const [stats, setStats] = useState<Stats>({ vehicles: 0, routes: 0, students: 0, activeTrips: 0 });
   const [retention, setRetention] = useState('30');
   const [interval, setIntervalValue] = useState('8');
   const [seeding, setSeeding] = useState(false);
   const [absences, setAbsences] = useState<AbsenceRow[]>([]);
 
+  const canManage = hasPermission(PERMISSIONS.TRANSPORT_MANAGE.resource, PERMISSIONS.TRANSPORT_MANAGE.action);
+  const canLiveTrack = hasPermission(PERMISSIONS.TRANSPORT_LIVE_TRACK.resource, PERMISSIONS.TRANSPORT_LIVE_TRACK.action);
+  const canOperateDriver = hasPermission(PERMISSIONS.TRANSPORT_DRIVER_OPERATE.resource, PERMISSIONS.TRANSPORT_DRIVER_OPERATE.action);
+
   const loadStats = async () => {
+    if (!institutionId) return;
     const count = async (table: string, filters: Record<string, string> = {}) => {
-      let q = db.from(table).select('id', { count: 'exact', head: true }).is('deleted_at', null);
+      let q = db.from(table).select('id', { count: 'exact', head: true })
+        .eq('institution_id', institutionId)
+        .is('deleted_at', null);
       Object.entries(filters).forEach(([k, v]) => { q = q.eq(k, v); });
       const { count: c } = await q;
       return c ?? 0;
     };
-    setStats({
-      vehicles: await count('vehicles'),
-      routes: await count('routes'),
-      students: await count('students'),
-      activeTrips: await count('transport_trips', { status: 'active' }),
-    });
+
+    const [vehicles, routes, students, activeTrips] = await Promise.all([
+      canManage ? count('vehicles') : Promise.resolve(0),
+      canManage ? count('routes') : Promise.resolve(0),
+      canManage ? count('student_transport_assignments') : Promise.resolve(0),
+      canLiveTrack ? count('transport_trips', { status: 'active' }) : Promise.resolve(0),
+    ]);
+
+    setStats({ vehicles, routes, students, activeTrips });
   };
 
   useEffect(() => {
-    loadStats();
+    if (authorizationLoading || !institutionId) return;
+    void loadStats();
+
     const loadSettings = async () => {
-      if (!institutionId) return;
+      if (!canManage) return;
       const { data } = await db.from('transport_settings').select('*').eq('institution_id', institutionId).maybeSingle();
       if (data) {
         setRetention(String(data.location_retention_days));
         setIntervalValue(String(data.ping_interval_seconds));
       }
     };
-    loadSettings();
+
     const loadAbsences = async () => {
+      if (!canManage) { setAbsences([]); return; }
       const { data } = await db.from('transport_absences')
         .select('id, institution_id, student_id, absence_date, direction, reason, cancelled_at, deleted_at, created_at, students(first_name, last_name, student_no)')
+        .eq('institution_id', institutionId)
         .gte('absence_date', toDateKey(new Date()))
         .is('cancelled_at', null)
         .is('deleted_at', null)
@@ -62,10 +79,13 @@ export default function TransportDashboardPage() {
         .limit(50);
       setAbsences((data || []) as AbsenceRow[]);
     };
-    loadAbsences();
-  }, [institutionId]);
+
+    void loadSettings();
+    void loadAbsences();
+  }, [institutionId, authorizationLoading, canManage, canLiveTrack]);
 
   const saveSettings = async () => {
+    if (!canManage) { toast.error('Bu işlem için Servis yönetim yetkisi gerekiyor'); return; }
     if (!institutionId) { toast.error('Kurum bulunamadı'); return; }
     const { error } = await db.from('transport_settings').upsert({
       institution_id: institutionId,
@@ -77,6 +97,7 @@ export default function TransportDashboardPage() {
   };
 
   const seedDemo = async () => {
+    if (!canManage) { toast.error('Bu işlem için Servis yönetim yetkisi gerekiyor'); return; }
     if (!institutionId) { toast.error('Kurum bulunamadı'); return; }
     setSeeding(true);
     try {
@@ -114,7 +135,7 @@ export default function TransportDashboardPage() {
       if (ae) throw ae;
 
       toast.success('Demo senaryosu oluşturuldu (1 araç, 1 hat, 3 durak, 2 öğrenci)');
-      loadStats();
+      void loadStats();
     } catch (err) {
       toast.error((err as { message?: string }).message || 'Demo verisi oluşturulamadı');
     } finally {
@@ -122,96 +143,102 @@ export default function TransportDashboardPage() {
     }
   };
 
-  const cards = [
-    { title: 'Araç', value: stats.vehicles, icon: Bus, to: '/transport/vehicles' },
-    { title: 'Hat', value: stats.routes, icon: RouteIcon, to: '/transport/routes' },
-    { title: 'Servis Öğrencisi', value: stats.students, icon: Users, to: '/transport/students' },
-    { title: 'Aktif Sefer', value: stats.activeTrips, icon: Radio, to: '/transport/live' },
-  ];
+  const cards = useMemo(() => [
+    canManage ? { title: 'Araç', value: stats.vehicles, icon: Bus, to: '/transport/vehicles' } : null,
+    canManage ? { title: 'Hat', value: stats.routes, icon: RouteIcon, to: '/transport/routes' } : null,
+    canManage ? { title: 'Servis Öğrencisi', value: stats.students, icon: Users, to: '/transport/students' } : null,
+    canLiveTrack ? { title: 'Aktif Sefer', value: stats.activeTrips, icon: Radio, to: '/transport/live' } : null,
+  ].filter(Boolean) as { title: string; value: number; icon: typeof Bus; to: string }[], [canManage, canLiveTrack, stats]);
 
   return (
     <AdminLayout>
       <PageHeader title="Servis Paneli" description="Öğrenci ulaşımına genel bakış"
-        actions={
+        actions={canOperateDriver ? (
           <Button asChild variant="outline" className="min-h-11">
             <Link to="/transport/driver"><Smartphone className="mr-2 h-4 w-4" />Şoför Ekranı</Link>
           </Button>
-        } />
+        ) : undefined} />
 
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
-        {cards.map(c => (
-          <Link key={c.title} to={c.to}>
-            <Card className="hover:border-primary transition">
-              <CardContent className="p-4 flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground">{c.title}</p>
-                  <p className="text-2xl font-bold">{c.value}</p>
+      {cards.length > 0 && (
+        <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+          {cards.map(c => (
+            <Link key={c.title} to={c.to}>
+              <Card className="hover:border-primary transition">
+                <CardContent className="p-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-muted-foreground">{c.title}</p>
+                    <p className="text-2xl font-bold">{c.value}</p>
+                  </div>
+                  <c.icon className="h-6 w-6 text-primary" />
+                </CardContent>
+              </Card>
+            </Link>
+          ))}
+        </div>
+      )}
+
+      {canManage && (
+        <>
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <CalendarOff className="h-4 w-4" />Servis Kullanmama Bildirimleri ({absences.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {absences.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Bugün ve sonrası için bildirim yok.</p>
+              ) : (
+                <div className="divide-y">
+                  {absences.map(a => (
+                    <div key={a.id} className="py-2 flex items-center justify-between gap-3 text-sm">
+                      <span className="truncate font-medium">
+                        {a.students ? `${a.students.first_name} ${a.students.last_name}` : 'Öğrenci'}
+                      </span>
+                      <span className="text-muted-foreground text-xs text-right shrink-0">
+                        {new Date(`${a.absence_date}T00:00:00`).toLocaleDateString('tr-TR')} · {ABSENCE_DIRECTION_LABELS[a.direction]}
+                      </span>
+                    </div>
+                  ))}
                 </div>
-                <c.icon className="h-6 w-6 text-primary" />
+              )}
+            </CardContent>
+          </Card>
+
+          <div className="grid gap-4 md:grid-cols-2 mt-6">
+            <Card>
+              <CardHeader><CardTitle className="text-base">Konum & Gizlilik Ayarları</CardTitle></CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Konum saklama süresi (gün)</Label>
+                  <Input inputMode="numeric" value={retention} onChange={e => setRetention(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Konum gönderim aralığı (saniye)</Label>
+                  <Input inputMode="numeric" value={interval} onChange={e => setIntervalValue(e.target.value)} />
+                </div>
+                <Button onClick={saveSettings} className="min-h-11">Kaydet</Button>
+                <p className="text-xs text-muted-foreground">
+                  Tüm sefer hareketleri (başlangıç, biniş, iniş, bitiş) denetim için kayıt altına alınır.
+                </p>
               </CardContent>
             </Card>
-          </Link>
-        ))}
-      </div>
 
-      <Card className="mt-6">
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <CalendarOff className="h-4 w-4" />Servis Kullanmama Bildirimleri ({absences.length})
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {absences.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Bugün ve sonrası için bildirim yok.</p>
-          ) : (
-            <div className="divide-y">
-              {absences.map(a => (
-                <div key={a.id} className="py-2 flex items-center justify-between gap-3 text-sm">
-                  <span className="truncate font-medium">
-                    {a.students ? `${a.students.first_name} ${a.students.last_name}` : 'Öğrenci'}
-                  </span>
-                  <span className="text-muted-foreground text-xs text-right shrink-0">
-                    {new Date(`${a.absence_date}T00:00:00`).toLocaleDateString('tr-TR')} · {ABSENCE_DIRECTION_LABELS[a.direction]}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <div className="grid gap-4 md:grid-cols-2 mt-6">
-        <Card>
-          <CardHeader><CardTitle className="text-base">Konum & Gizlilik Ayarları</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label>Konum saklama süresi (gün)</Label>
-              <Input inputMode="numeric" value={retention} onChange={e => setRetention(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label>Konum gönderim aralığı (saniye)</Label>
-              <Input inputMode="numeric" value={interval} onChange={e => setIntervalValue(e.target.value)} />
-            </div>
-            <Button onClick={saveSettings} className="min-h-11">Kaydet</Button>
-            <p className="text-xs text-muted-foreground">
-              Tüm sefer hareketleri (başlangıç, biniş, iniş, bitiş) denetim için kayıt altına alınır.
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader><CardTitle className="text-base flex items-center gap-2"><FlaskConical className="h-4 w-4" />Test Senaryosu</CardTitle></CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Sistemi denemek için demo olarak işaretlenmiş 1 araç, 1 hat, 3 durak ve 2 öğrenci oluşturur.
-              Mevcut verileriniz etkilenmez.
-            </p>
-            <Button variant="outline" className="min-h-11" disabled={seeding} onClick={seedDemo}>
-              Demo Verisi Oluştur
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+            <Card>
+              <CardHeader><CardTitle className="text-base flex items-center gap-2"><FlaskConical className="h-4 w-4" />Test Senaryosu</CardTitle></CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Sistemi denemek için demo olarak işaretlenmiş 1 araç, 1 hat, 3 durak ve 2 öğrenci oluşturur.
+                  Mevcut verileriniz etkilenmez.
+                </p>
+                <Button variant="outline" className="min-h-11" disabled={seeding} onClick={seedDemo}>
+                  Demo Verisi Oluştur
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        </>
+      )}
     </AdminLayout>
   );
 }
