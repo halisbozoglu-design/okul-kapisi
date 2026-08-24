@@ -26,7 +26,7 @@ export interface LocationProvider {
     onSample: (sample: LocationSample) => void,
     onError: (error: LocationProviderError) => void,
   ): void;
-  stop(): void;
+  stop(): void | Promise<void>;
 }
 
 const ERROR_MESSAGES: Record<LocationErrorCode, string> = {
@@ -37,61 +37,7 @@ const ERROR_MESSAGES: Record<LocationErrorCode, string> = {
   unsupported: 'Bu cihaz konum servisini desteklemiyor.',
 };
 
-export class BrowserGeolocationProvider implements LocationProvider {
-  readonly id = 'browser';
-  private watchId: number | null = null;
-
-  isSupported() {
-    return typeof navigator !== 'undefined' && 'geolocation' in navigator;
-  }
-
-  start(
-    onSample: (sample: LocationSample) => void,
-    onError: (error: LocationProviderError) => void,
-  ) {
-    if (!this.isSupported()) {
-      onError({ code: 'unsupported', message: ERROR_MESSAGES.unsupported });
-      return;
-    }
-    this.stop();
-    this.watchId = navigator.geolocation.watchPosition(
-      (pos) => {
-        onSample({
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-          accuracy: pos.coords.accuracy ?? null,
-          speed: pos.coords.speed ?? null,
-          heading: pos.coords.heading ?? null,
-          timestamp: pos.timestamp,
-          source: this.id,
-        });
-      },
-      (err) => {
-        const code: LocationErrorCode =
-          err.code === err.PERMISSION_DENIED
-            ? 'permission_denied'
-            : err.code === err.TIMEOUT
-              ? 'timeout'
-              : 'unavailable';
-        onError({ code, message: ERROR_MESSAGES[code] });
-      },
-      { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 },
-    );
-  }
-
-  stop() {
-    if (this.watchId !== null) {
-      navigator.geolocation.clearWatch(this.watchId);
-      this.watchId = null;
-    }
-  }
-}
-
-/**
- * Native Android/iOS provider.
- * Android uses a foreground-service notification while a trip is sharing location.
- * iOS uses the native background location capability once Always/Background permission is granted.
- */
+/** Native Android/iOS background location provider. */
 export class NativeBackgroundLocationProvider implements LocationProvider {
   readonly id = 'native-background';
   private watcherId: string | null = null;
@@ -135,7 +81,7 @@ export class NativeBackgroundLocationProvider implements LocationProvider {
               accuracy: location.accuracy ?? null,
               speed: location.speed ?? null,
               heading: location.bearing ?? null,
-              timestamp: location.time ?? Date.now(),
+              timestamp: typeof location.time === 'number' ? location.time : Date.now(),
               source: this.id,
             });
           },
@@ -149,15 +95,84 @@ export class NativeBackgroundLocationProvider implements LocationProvider {
     });
   }
 
-  stop() {
+  async stop() {
     const id = this.watcherId;
     this.watcherId = null;
-    if (!id) return Promise.resolve();
-    return BackgroundGeolocation.removeWatcher({ id }).then(() => undefined).catch(() => undefined);
+    if (!id) return;
+    try {
+      await BackgroundGeolocation.removeWatcher({ id });
+    } catch {
+      // Idempotent cleanup: watcher may already have been removed by the OS.
+    }
   }
 }
 
-/** Native on Android/iOS, browser GPS on web/PWA. */
+/**
+ * Compatibility provider used by the existing driver page.
+ * On native Android/iOS it transparently delegates to background GPS.
+ * On web/PWA it keeps using navigator.geolocation.
+ */
+export class BrowserGeolocationProvider implements LocationProvider {
+  readonly id = Capacitor.isNativePlatform() ? 'native-background' : 'browser';
+  private watchId: number | null = null;
+  private nativeProvider: NativeBackgroundLocationProvider | null = null;
+
+  isSupported() {
+    if (Capacitor.isNativePlatform()) return true;
+    return typeof navigator !== 'undefined' && 'geolocation' in navigator;
+  }
+
+  start(
+    onSample: (sample: LocationSample) => void,
+    onError: (error: LocationProviderError) => void,
+  ) {
+    if (Capacitor.isNativePlatform()) {
+      this.nativeProvider ??= new NativeBackgroundLocationProvider();
+      this.nativeProvider.start(onSample, onError);
+      return;
+    }
+
+    if (!this.isSupported()) {
+      onError({ code: 'unsupported', message: ERROR_MESSAGES.unsupported });
+      return;
+    }
+    void this.stop();
+    this.watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        onSample({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracy: pos.coords.accuracy ?? null,
+          speed: pos.coords.speed ?? null,
+          heading: pos.coords.heading ?? null,
+          timestamp: pos.timestamp,
+          source: this.id,
+        });
+      },
+      (err) => {
+        const code: LocationErrorCode =
+          err.code === err.PERMISSION_DENIED
+            ? 'permission_denied'
+            : err.code === err.TIMEOUT
+              ? 'timeout'
+              : 'unavailable';
+        onError({ code, message: ERROR_MESSAGES[code] });
+      },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 },
+    );
+  }
+
+  async stop() {
+    if (this.nativeProvider) {
+      await this.nativeProvider.stop();
+    }
+    if (this.watchId !== null && typeof navigator !== 'undefined') {
+      navigator.geolocation.clearWatch(this.watchId);
+      this.watchId = null;
+    }
+  }
+}
+
 export function createLocationProvider(): LocationProvider {
   return Capacitor.isNativePlatform()
     ? new NativeBackgroundLocationProvider()
