@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useMemo, useState } from 'react';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,21 +8,25 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { School } from 'lucide-react';
 import { toast } from 'sonner';
 
+function safeReturnPath(value: string | null) {
+  if (!value || !value.startsWith('/') || value.startsWith('//')) return '/dashboard';
+  return value;
+}
+
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const next = useMemo(() => safeReturnPath(params.get('next')), [params]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      toast.error(error.message);
-    } else {
-      navigate('/dashboard');
-    }
+    if (error) toast.error(error.message);
+    else navigate(next, { replace: true });
     setLoading(false);
   };
 
@@ -35,43 +39,23 @@ export default function LoginPage() {
               <School className="h-8 w-8 text-primary-foreground" />
             </div>
           </div>
-          <CardTitle className="text-2xl">EduPanel</CardTitle>
+          <CardTitle className="text-2xl">MİMAROS</CardTitle>
           <CardDescription>Okul Yönetim Sistemine Giriş Yapın</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">E-posta</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                placeholder="ornek@okul.com"
-                required
-              />
+              <Input id="email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="ornek@okul.com" required />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Şifre</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-              />
+              <Input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" required />
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Giriş yapılıyor...' : 'Giriş Yap'}
-            </Button>
+            <Button type="submit" className="w-full" disabled={loading}>{loading ? 'Giriş yapılıyor...' : 'Giriş Yap'}</Button>
             <div className="flex justify-between text-sm">
-              <Link to="/forgot-password" className="text-primary hover:underline">
-                Şifremi Unuttum
-              </Link>
-              <Link to="/register" className="text-primary hover:underline">
-                Kayıt Ol
-              </Link>
+              <Link to="/forgot-password" className="text-primary hover:underline">Şifremi Unuttum</Link>
+              <Link to={`/register?next=${encodeURIComponent(next)}`} className="text-primary hover:underline">Kayıt Ol</Link>
             </div>
           </form>
         </CardContent>
