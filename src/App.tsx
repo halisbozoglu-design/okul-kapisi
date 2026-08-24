@@ -47,9 +47,6 @@ import StudentDutyPage from "./pages/security/StudentDutyPage";
 
 const queryClient = new QueryClient();
 
-const SECURITY_OPERATORS = ['super_admin', 'kurum_yoneticisi', 'okul_yoneticisi', 'mudur_yardimcisi', 'personel'] as const;
-const SECURITY_MANAGERS = ['super_admin', 'kurum_yoneticisi', 'okul_yoneticisi', 'mudur_yardimcisi'] as const;
-
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -97,12 +94,12 @@ const App = () => (
             <Route path="/transport/driver" element={<ProtectedRoute><DriverPage /></ProtectedRoute>} />
             <Route path="/transport/parent" element={<ProtectedRoute requiredPermission={PERMISSIONS.TRANSPORT_PARENT_VIEW}><ParentPage /></ProtectedRoute>} />
 
-            {/* Güvenlik & Ziyaretçi: next module to migrate to the same permission matrix. */}
-            <Route path="/security/visitors/check-in" element={<ProtectedRoute requiredRoles={[...SECURITY_OPERATORS]}><SecurityCheckInPage /></ProtectedRoute>} />
-            <Route path="/security/visitors/inside" element={<ProtectedRoute requiredRoles={[...SECURITY_OPERATORS]}><VisitorsInsidePage /></ProtectedRoute>} />
-            <Route path="/security/visitors/ledger" element={<ProtectedRoute requiredRoles={[...SECURITY_OPERATORS]}><VisitorLedgerPage /></ProtectedRoute>} />
-            <Route path="/security/locations" element={<ProtectedRoute requiredRoles={[...SECURITY_MANAGERS]}><SecurityLocationsPage /></ProtectedRoute>} />
-            <Route path="/security/student-duty" element={<ProtectedRoute requiredRoles={[...SECURITY_MANAGERS, 'ogretmen']}><StudentDutyPage /></ProtectedRoute>} />
+            {/* Security & visitor routes use the same tenant permission source as DB RLS. */}
+            <Route path="/security/visitors/check-in" element={<ProtectedRoute requiredPermission={PERMISSIONS.SECURITY_OPERATE}><SecurityCheckInPage /></ProtectedRoute>} />
+            <Route path="/security/visitors/inside" element={<ProtectedRoute requiredPermission={PERMISSIONS.SECURITY_OPERATE}><VisitorsInsidePage /></ProtectedRoute>} />
+            <Route path="/security/visitors/ledger" element={<ProtectedRoute requiredPermission={PERMISSIONS.SECURITY_OPERATE}><VisitorLedgerPage /></ProtectedRoute>} />
+            <Route path="/security/locations" element={<ProtectedRoute requiredPermission={PERMISSIONS.SECURITY_MANAGE}><SecurityLocationsPage /></ProtectedRoute>} />
+            <Route path="/security/student-duty" element={<ProtectedRoute requiredPermission={PERMISSIONS.SECURITY_STUDENT_DUTY_VIEW}><StudentDutyPage /></ProtectedRoute>} />
 
             <Route path="*" element={<NotFound />} />
           </Routes>
