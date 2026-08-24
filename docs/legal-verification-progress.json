@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "updated_on": "2026-08-24",
   "master_workflow_count": 2229,
   "last_reliable_article_verified": 390,
@@ -33,12 +33,17 @@
       "occupation-compatible workplace-entry health report",
       "AOL/MAOL/AOIHL simultaneous registration",
       "MAOL equivalent face-to-face course exemption",
-      "two-month workplace-contract deadline",
+      "two-month workplace-contract deadline for placed MESEM students",
       "contract completion triggers registration completion and SGK entry",
-      "eligible 18+ year-round registration",
-      "grade-9 intensive theory for eligible first-term adult registrations",
-      "post-February second-term registration: workplace training starts, no year-end grade, theory next school year"
-    ]
+      "18+ year-round registration only when the 3308 Art.10/2 workplace contract condition is met",
+      "grade-9 intensive theory for eligible first-term adult contracted registrations",
+      "post-February second-term contracted registration: workplace training starts, no year-end grade, theory next school year"
+    ],
+    "interpretation_correction": {
+      "corrected_on": "2026-08-24",
+      "rule": "Md.22/9 does not support year-round registration for a merely 18+ contractless applicant; the paragraph expressly requires a workplace contract under 3308 Art.10/2.",
+      "status": "STAGING_CORRECTED_BEFORE_PRODUCTION"
+    }
   },
   "next_target": {
     "family": "MESEM_REGISTRATION_AND_TRANSFER",
