@@ -38,6 +38,17 @@ jobs:
           fi
           npx cap sync ios
 
+      - name: Configure iOS background location permissions
+        run: |
+          PLIST="ios/App/App/Info.plist"
+          /usr/libexec/PlistBuddy -c "Delete :NSLocationWhenInUseUsageDescription" "$PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :NSLocationWhenInUseUsageDescription string 'Servis seferinde aracın canlı konumunu paylaşmak için konum erişimi gerekir.'" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Delete :NSLocationAlwaysAndWhenInUseUsageDescription" "$PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysAndWhenInUseUsageDescription string 'Sefer sırasında ekran kilitliyken de servis konumunu paylaşmak için arka plan konum erişimi gerekir.'" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Delete :UIBackgroundModes" "$PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:0 string location" "$PLIST"
+
       - name: Verify signing secrets
         env:
           CERT: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
