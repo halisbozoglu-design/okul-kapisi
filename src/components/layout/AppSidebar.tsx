@@ -1,7 +1,6 @@
 import {
   LayoutDashboard,
   Building2,
-  Settings,
   Users,
   GraduationCap,
   BookOpen,
@@ -10,7 +9,6 @@ import {
   Layers,
   DoorOpen,
   GitBranch,
-  Shield,
   Bus,
   Route as RouteIcon,
   IdCard,
@@ -25,7 +23,9 @@ import {
 import { NavLink } from '@/components/NavLink';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { AppRole } from '@/types/auth';
+import { useAuthorization } from '@/hooks/useAuthorization';
+import { PERMISSIONS } from '@/lib/auth/permissions';
+import type { AppRole } from '@/types/auth';
 import {
   Sidebar,
   SidebarContent,
@@ -38,50 +38,53 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 
+interface PermissionRequirement {
+  resource: string;
+  action: string;
+}
+
 interface NavItem {
   title: string;
   url: string;
   icon: React.ElementType;
-  roles: AppRole[];
+  roles?: AppRole[];
+  permission?: PermissionRequirement;
 }
 
 const mainItems: NavItem[] = [
-  {
-    title: 'Dashboard',
-    url: '/dashboard',
-    icon: LayoutDashboard,
-    roles: ['super_admin', 'kurum_yoneticisi', 'okul_yoneticisi', 'mudur_yardimcisi', 'ogretmen', 'rehberlik', 'koc_ogretmen', 'veli', 'ogrenci', 'personel'],
-  },
+  { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard },
 ];
 
 const settingsItems: NavItem[] = [
-  { title: 'Kurumlar', url: '/settings/institutions', icon: Building2, roles: ['super_admin', 'kurum_yoneticisi'] },
-  { title: 'Kampüsler', url: '/settings/campuses', icon: School, roles: ['super_admin', 'kurum_yoneticisi', 'okul_yoneticisi'] },
-  { title: 'Akademik Yıllar', url: '/settings/academic-years', icon: CalendarDays, roles: ['super_admin', 'kurum_yoneticisi', 'okul_yoneticisi'] },
-  { title: 'Dönemler', url: '/settings/terms', icon: BookOpen, roles: ['super_admin', 'kurum_yoneticisi', 'okul_yoneticisi'] },
-  { title: 'Sınıf Düzeyleri', url: '/settings/grade-levels', icon: Layers, roles: ['super_admin', 'kurum_yoneticisi', 'okul_yoneticisi'] },
-  { title: 'Şubeler', url: '/settings/sections', icon: GraduationCap, roles: ['super_admin', 'kurum_yoneticisi', 'okul_yoneticisi'] },
-  { title: 'Derslikler', url: '/settings/classrooms', icon: DoorOpen, roles: ['super_admin', 'kurum_yoneticisi', 'okul_yoneticisi'] },
-  { title: 'Branşlar', url: '/settings/branches', icon: GitBranch, roles: ['super_admin', 'kurum_yoneticisi', 'okul_yoneticisi'] },
+  { title: 'Kurumlar', url: '/settings/institutions', icon: Building2, permission: PERMISSIONS.ACCESS_MANAGE },
+  { title: 'Kampüsler', url: '/settings/campuses', icon: School, permission: PERMISSIONS.SETTINGS_MANAGE },
+  { title: 'Akademik Yıllar', url: '/settings/academic-years', icon: CalendarDays, permission: PERMISSIONS.SETTINGS_MANAGE },
+  { title: 'Dönemler', url: '/settings/terms', icon: BookOpen, permission: PERMISSIONS.SETTINGS_MANAGE },
+  { title: 'Sınıf Düzeyleri', url: '/settings/grade-levels', icon: Layers, permission: PERMISSIONS.SETTINGS_MANAGE },
+  { title: 'Şubeler', url: '/settings/sections', icon: GraduationCap, permission: PERMISSIONS.SETTINGS_MANAGE },
+  { title: 'Derslikler', url: '/settings/classrooms', icon: DoorOpen, permission: PERMISSIONS.SETTINGS_MANAGE },
+  { title: 'Branşlar', url: '/settings/branches', icon: GitBranch, permission: PERMISSIONS.SETTINGS_MANAGE },
 ];
 
-const TRANSPORT_MANAGERS: AppRole[] = ['super_admin', 'kurum_yoneticisi', 'okul_yoneticisi', 'mudur_yardimcisi'];
-
 const transportItems: NavItem[] = [
-  { title: 'Panel', url: '/transport', icon: Bus, roles: TRANSPORT_MANAGERS },
-  { title: 'Araçlar', url: '/transport/vehicles', icon: Bus, roles: TRANSPORT_MANAGERS },
-  { title: 'Şoför / Rehber', url: '/transport/staff', icon: IdCard, roles: TRANSPORT_MANAGERS },
-  { title: 'Hatlar & Duraklar', url: '/transport/routes', icon: RouteIcon, roles: TRANSPORT_MANAGERS },
-  { title: 'Öğrenci Atama', url: '/transport/students', icon: UserSquare2, roles: TRANSPORT_MANAGERS },
-  { title: 'Canlı Takip', url: '/transport/live', icon: Radio, roles: TRANSPORT_MANAGERS },
-  { title: 'Seferler', url: '/transport/trips', icon: History, roles: TRANSPORT_MANAGERS },
+  { title: 'Panel', url: '/transport', icon: Bus, permission: PERMISSIONS.TRANSPORT_VIEW },
+  { title: 'Araçlar', url: '/transport/vehicles', icon: Bus, permission: PERMISSIONS.TRANSPORT_MANAGE },
+  { title: 'Şoför / Rehber', url: '/transport/staff', icon: IdCard, permission: PERMISSIONS.TRANSPORT_MANAGE },
+  { title: 'Hatlar & Duraklar', url: '/transport/routes', icon: RouteIcon, permission: PERMISSIONS.TRANSPORT_MANAGE },
+  { title: 'Öğrenci Atama', url: '/transport/students', icon: UserSquare2, permission: PERMISSIONS.TRANSPORT_MANAGE },
+  { title: 'Canlı Takip', url: '/transport/live', icon: Radio, permission: PERMISSIONS.TRANSPORT_LIVE_TRACK },
+  { title: 'Seferler', url: '/transport/trips', icon: History, permission: PERMISSIONS.TRANSPORT_MANAGE },
   {
-    title: 'Şoför Ekranı', url: '/transport/driver', icon: Smartphone,
-    roles: [...TRANSPORT_MANAGERS, 'ogretmen', 'personel'],
+    title: 'Şoför Ekranı',
+    url: '/transport/driver',
+    icon: Smartphone,
+    roles: ['super_admin', 'kurum_yoneticisi', 'okul_yoneticisi', 'mudur_yardimcisi', 'personel'],
   },
   {
-    title: 'Veli Servis Takibi', url: '/transport/parent', icon: UserSquare2,
-    roles: [...TRANSPORT_MANAGERS, 'veli'],
+    title: 'Veli Servis Takibi',
+    url: '/transport/parent',
+    icon: UserSquare2,
+    permission: PERMISSIONS.TRANSPORT_PARENT_VIEW,
   },
 ];
 
@@ -96,140 +99,85 @@ const securityItems: NavItem[] = [
   { title: 'Nöbetçi Öğrenci', url: '/security/student-duty', icon: ShieldCheck, roles: [...SECURITY_MANAGERS, 'ogretmen'] },
 ];
 
-const adminItems: NavItem[] = [
-  { title: 'Kullanıcı Yönetimi', url: '/admin/users', icon: Users, roles: ['super_admin'] },
-  { title: 'Rol Yönetimi', url: '/admin/roles', icon: Shield, roles: ['super_admin'] },
-];
+function NavGroup({
+  label,
+  items,
+  collapsed,
+}: {
+  label: string;
+  items: NavItem[];
+  collapsed: boolean;
+}) {
+  if (!items.length) return null;
+
+  return (
+    <SidebarGroup>
+      <SidebarGroupLabel>{label}</SidebarGroupLabel>
+      <SidebarGroupContent>
+        <SidebarMenu>
+          {items.map((item) => (
+            <SidebarMenuItem key={item.url}>
+              <SidebarMenuButton asChild>
+                <NavLink
+                  to={item.url}
+                  end={item.url === '/transport'}
+                  className="hover:bg-sidebar-accent"
+                  activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
+                >
+                  <item.icon className="mr-2 h-4 w-4" />
+                  {!collapsed && <span>{item.title}</span>}
+                </NavLink>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ))}
+        </SidebarMenu>
+      </SidebarGroupContent>
+    </SidebarGroup>
+  );
+}
 
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
-  const location = useLocation();
-  const { roles, hasAnyRole } = useAuth();
+  useLocation(); // keeps active NavLink rendering in sync with route changes
+  const { hasAnyRole } = useAuth();
+  const { hasPermission, hasTenantRole, loading: authorizationLoading } = useAuthorization();
 
-  const filterByRole = (items: NavItem[]) =>
-    items.filter(item => hasAnyRole(item.roles));
+  const canSee = (item: NavItem) => {
+    if (item.permission && !hasPermission(item.permission.resource, item.permission.action)) return false;
+    if (item.roles?.length) {
+      // Prefer tenant-scoped roles; legacy roles are only a compatibility fallback
+      // while the authorization migration is not yet deployed.
+      return item.roles.some((role) => hasTenantRole(role)) || hasAnyRole(item.roles);
+    }
+    return true;
+  };
 
-  const visibleMain = filterByRole(mainItems);
-  const visibleSettings = filterByRole(settingsItems);
-  const visibleTransport = filterByRole(transportItems);
-  const visibleSecurity = filterByRole(securityItems);
-  const visibleAdmin = filterByRole(adminItems);
+  const filterItems = (items: NavItem[]) => (authorizationLoading ? [] : items.filter(canSee));
+
+  const visibleMain = filterItems(mainItems);
+  const visibleSettings = filterItems(settingsItems);
+  const visibleTransport = filterItems(transportItems);
+  const visibleSecurity = filterItems(securityItems);
 
   return (
     <Sidebar collapsible="icon">
       <SidebarContent>
         <div className="p-4">
-          {!collapsed && (
+          {!collapsed ? (
             <div className="flex items-center gap-2">
               <School className="h-7 w-7 text-sidebar-primary" />
-              <span className="text-lg font-bold text-sidebar-foreground">EduPanel</span>
+              <span className="text-lg font-bold text-sidebar-foreground">MİMAROS</span>
             </div>
+          ) : (
+            <School className="h-7 w-7 text-sidebar-primary mx-auto" />
           )}
-          {collapsed && <School className="h-7 w-7 text-sidebar-primary mx-auto" />}
         </div>
 
-        {visibleMain.length > 0 && (
-          <SidebarGroup>
-            <SidebarGroupLabel>Ana Menü</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {visibleMain.map(item => (
-                  <SidebarMenuItem key={item.url}>
-                    <SidebarMenuButton asChild>
-                      <NavLink to={item.url} className="hover:bg-sidebar-accent" activeClassName="bg-sidebar-accent text-sidebar-primary font-medium">
-                        <item.icon className="mr-2 h-4 w-4" />
-                        {!collapsed && <span>{item.title}</span>}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
-
-        {visibleSettings.length > 0 && (
-          <SidebarGroup>
-            <SidebarGroupLabel>Kurum Ayarları</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {visibleSettings.map(item => (
-                  <SidebarMenuItem key={item.url}>
-                    <SidebarMenuButton asChild>
-                      <NavLink to={item.url} className="hover:bg-sidebar-accent" activeClassName="bg-sidebar-accent text-sidebar-primary font-medium">
-                        <item.icon className="mr-2 h-4 w-4" />
-                        {!collapsed && <span>{item.title}</span>}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
-
-        {visibleTransport.length > 0 && (
-          <SidebarGroup>
-            <SidebarGroupLabel>Servis Yönetimi</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {visibleTransport.map(item => (
-                  <SidebarMenuItem key={item.url}>
-                    <SidebarMenuButton asChild>
-                      <NavLink to={item.url} end={item.url === '/transport'} className="hover:bg-sidebar-accent" activeClassName="bg-sidebar-accent text-sidebar-primary font-medium">
-                        <item.icon className="mr-2 h-4 w-4" />
-                        {!collapsed && <span>{item.title}</span>}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
-
-        {visibleSecurity.length > 0 && (
-          <SidebarGroup>
-            <SidebarGroupLabel>Güvenlik &amp; Ziyaretçi</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {visibleSecurity.map(item => (
-                  <SidebarMenuItem key={item.url}>
-                    <SidebarMenuButton asChild>
-                      <NavLink to={item.url} className="hover:bg-sidebar-accent" activeClassName="bg-sidebar-accent text-sidebar-primary font-medium">
-                        <item.icon className="mr-2 h-4 w-4" />
-                        {!collapsed && <span>{item.title}</span>}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
-
-
-
-        {visibleAdmin.length > 0 && (
-          <SidebarGroup>
-            <SidebarGroupLabel>Yönetim</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {visibleAdmin.map(item => (
-                  <SidebarMenuItem key={item.url}>
-                    <SidebarMenuButton asChild>
-                      <NavLink to={item.url} className="hover:bg-sidebar-accent" activeClassName="bg-sidebar-accent text-sidebar-primary font-medium">
-                        <item.icon className="mr-2 h-4 w-4" />
-                        {!collapsed && <span>{item.title}</span>}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
+        <NavGroup label="Ana Menü" items={visibleMain} collapsed={collapsed} />
+        <NavGroup label="Kurum Ayarları" items={visibleSettings} collapsed={collapsed} />
+        <NavGroup label="Servis Yönetimi" items={visibleTransport} collapsed={collapsed} />
+        <NavGroup label="Güvenlik & Ziyaretçi" items={visibleSecurity} collapsed={collapsed} />
       </SidebarContent>
     </Sidebar>
   );
