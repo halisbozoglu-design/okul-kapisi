@@ -29,7 +29,7 @@ jobs:
           java-version: '21'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install --legacy-peer-deps
 
       - name: Build web bundle
         run: npm run build:web
@@ -60,3 +60,5 @@ jobs:
           name: mimaros-android-aab
           path: android/app/build/outputs/bundle/debug/app-debug.aab
           if-no-files-found: error
+
+# build-trigger: 2026-08-24T12:45+03:00
