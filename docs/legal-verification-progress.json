@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "updated_on": "2026-08-24",
+  "master_workflow_count": 2229,
+  "last_reliable_article_verified": 390,
+  "last_reliable_article_verified_percent": 17.5,
+  "artifact_state": {
+    "latest_reported_master": "Mimaros_Master_Legal_Verification_Progress_v27.csv",
+    "runtime_master_available": false,
+    "file_library_master_available": false,
+    "rule": "Do not increment ARTICLE_VERIFIED unless workflow_id + current official source + article/paragraph are all directly verified."
+  },
+  "official_source_policy": [
+    "Resmi Gazete",
+    "MEB Mevzuat Sistemi",
+    "mevzuat.gov.tr",
+    "MEB general directorate official guides/PDFs",
+    "MEB Teftis Kurulu current inspection guides"
+  ],
+  "publication_model": {
+    "new_or_changed_rules": "STAGING_SUPERADMIN_APPROVAL",
+    "history": "immutable",
+    "apply_to": "future_and_pending_workflows_only",
+    "impact_levels": ["L0", "L1", "L2", "L3"]
+  },
+  "current_focus": {
+    "legal_family": "MESEM_REGISTRATION",
+    "primary_source": "https://mevzuat.meb.gov.tr/dosyalar/1657.pdf",
+    "inspection_crosscheck": "https://tkb.meb.gov.tr/www/denetim-rehberleri/icerik/291",
+    "articles": ["21", "22"],
+    "staged_rules": [
+      "MESEM 18+ registration exception",
+      "occupation-compatible workplace-entry health report",
+      "AOL/MAOL/AOIHL simultaneous registration",
+      "MAOL equivalent face-to-face course exemption",
+      "two-month workplace-contract deadline",
+      "contract completion triggers registration completion and SGK entry",
+      "eligible 18+ year-round registration",
+      "grade-9 intensive theory for eligible first-term adult registrations",
+      "post-February second-term registration: workplace training starts, no year-end grade, theory next school year"
+    ]
+  },
+  "next_target": {
+    "family": "MESEM_REGISTRATION_AND_TRANSFER",
+    "articles": ["21", "22", "37", "38", "41"],
+    "action": "Recover or reconstruct a durable workflow-id master, then bind only exact legacy workflow rows to current official provisions."
+  }
+}
