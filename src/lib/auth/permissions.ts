@@ -6,6 +6,7 @@ export const PERMISSIONS = {
   TRANSPORT_VIEW: { resource: 'transport', action: 'view' },
   TRANSPORT_MANAGE: { resource: 'transport', action: 'manage' },
   TRANSPORT_LIVE_TRACK: { resource: 'transport', action: 'live_track' },
+  TRANSPORT_DRIVER_OPERATE: { resource: 'transport.driver', action: 'operate' },
   TRANSPORT_PARENT_VIEW: { resource: 'transport.parent', action: 'view' },
   SECURITY_OPERATE: { resource: 'security', action: 'operate' },
   SECURITY_MANAGE: { resource: 'security', action: 'manage' },
@@ -22,28 +23,28 @@ export type PermissionKey = `${string}:${string}`;
 export const LEGACY_ROLE_PERMISSIONS: Partial<Record<AppRole, readonly PermissionKey[]>> = {
   super_admin: [
     'users:manage', 'settings:manage',
-    'transport:view', 'transport:manage', 'transport:live_track', 'transport.parent:view',
+    'transport:view', 'transport:manage', 'transport:live_track', 'transport.driver:operate', 'transport.parent:view',
     'security:operate', 'security:manage', 'security.student_duty:view',
     'audit:view',
   ],
   kurum_yoneticisi: [
     'users:manage', 'settings:manage',
-    'transport:view', 'transport:manage', 'transport:live_track',
+    'transport:view', 'transport:manage', 'transport:live_track', 'transport.driver:operate',
     'security:operate', 'security:manage', 'security.student_duty:view',
     'audit:view',
   ],
   okul_yoneticisi: [
     'users:manage', 'settings:manage',
-    'transport:view', 'transport:manage', 'transport:live_track',
+    'transport:view', 'transport:manage', 'transport:live_track', 'transport.driver:operate',
     'security:operate', 'security:manage', 'security.student_duty:view',
     'audit:view',
   ],
   mudur_yardimcisi: [
-    'transport:view', 'transport:manage', 'transport:live_track',
+    'transport:view', 'transport:manage', 'transport:live_track', 'transport.driver:operate',
     'security:operate', 'security:manage', 'security.student_duty:view',
   ],
   ogretmen: ['security.student_duty:view'],
-  personel: ['security:operate'],
+  personel: ['security:operate', 'transport.driver:operate'],
   veli: ['transport.parent:view'],
 };
 
