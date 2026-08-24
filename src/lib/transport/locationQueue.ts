@@ -1,8 +1,9 @@
 /**
  * Offline-tolerant location ping queue for the driver screen.
  *
- * Only location telemetry is stored on the device (trip id + coordinates).
- * No student / guardian PII and no auth tokens are ever written here.
+ * Only location telemetry is stored on the device (trip id + coordinates +
+ * tenant-scoped device registration id). No student / guardian PII and no auth
+ * tokens are ever written here.
  *
  * Storage: IndexedDB when available, in-memory fallback otherwise.
  */
@@ -12,6 +13,8 @@ export interface QueuedPing {
   id: string;
   tripId: string;
   institutionId: string;
+  /** server-side mobile_device_registrations.id when available */
+  deviceId: string | null;
   lat: number;
   lng: number;
   accuracy: number | null;
