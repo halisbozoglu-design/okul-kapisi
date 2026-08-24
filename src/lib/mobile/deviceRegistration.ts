@@ -38,17 +38,37 @@ export interface MobileDeviceRegistrationInput {
   motionPermission?: 'unknown' | 'prompt' | 'granted' | 'denied';
 }
 
-const registrationCache = new Map<string, Promise<string>>();
+interface CachedRegistration {
+  fingerprint: string;
+  request: Promise<string>;
+}
+
+const registrationCache = new Map<string, CachedRegistration>();
+
+/**
+ * Fingerprint only the mutable state that is persisted by register_mobile_device.
+ * A changed permission/token must cause a new RPC call; otherwise a stale session
+ * cache could leave an old push token active after the user disables notifications.
+ */
+export function deviceRegistrationFingerprint(input: MobileDeviceRegistrationInput): string {
+  return JSON.stringify([
+    input.notificationsEnabled ?? false,
+    input.notificationsEnabled ? (input.pushToken ?? null) : null,
+    input.backgroundLocationEnabled ?? false,
+    input.motionPermission ?? 'unknown',
+  ]);
+}
 
 /**
  * Registers this installation against the active tenant through the server RPC.
  * The RPC derives the user from auth.uid(), validates active tenant membership,
- * and refuses silently-revoked installations. Calls are de-duplicated per tenant
- * for the lifetime of the current application session.
+ * and refuses silently-revoked installations. Identical concurrent/session calls
+ * are de-duplicated, while changed push/permission state is always re-synchronized.
  */
 export function registerMobileDevice(input: MobileDeviceRegistrationInput): Promise<string> {
+  const fingerprint = deviceRegistrationFingerprint(input);
   const cached = registrationCache.get(input.institutionId);
-  if (cached) return cached;
+  if (cached?.fingerprint === fingerprint) return cached.request;
 
   const request = (async () => {
     const installationId = getInstallationId();
@@ -59,7 +79,7 @@ export function registerMobileDevice(input: MobileDeviceRegistrationInput): Prom
       _device_model: null,
       _os_version: null,
       _app_version: import.meta.env.VITE_APP_VERSION ?? null,
-      _push_token: input.pushToken ?? null,
+      _push_token: input.notificationsEnabled ? (input.pushToken ?? null) : null,
       _notifications_enabled: input.notificationsEnabled ?? false,
       _background_location_enabled: input.backgroundLocationEnabled ?? false,
       _motion_permission: input.motionPermission ?? 'unknown',
@@ -69,8 +89,11 @@ export function registerMobileDevice(input: MobileDeviceRegistrationInput): Prom
     return data;
   })();
 
-  registrationCache.set(input.institutionId, request);
-  void request.catch(() => registrationCache.delete(input.institutionId));
+  registrationCache.set(input.institutionId, { fingerprint, request });
+  void request.catch(() => {
+    const current = registrationCache.get(input.institutionId);
+    if (current?.request === request) registrationCache.delete(input.institutionId);
+  });
   return request;
 }
 
