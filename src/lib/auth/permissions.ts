@@ -7,6 +7,9 @@ export const PERMISSIONS = {
   TRANSPORT_MANAGE: { resource: 'transport', action: 'manage' },
   TRANSPORT_LIVE_TRACK: { resource: 'transport', action: 'live_track' },
   TRANSPORT_PARENT_VIEW: { resource: 'transport.parent', action: 'view' },
+  SECURITY_OPERATE: { resource: 'security', action: 'operate' },
+  SECURITY_MANAGE: { resource: 'security', action: 'manage' },
+  SECURITY_STUDENT_DUTY_VIEW: { resource: 'security.student_duty', action: 'view' },
   AUDIT_VIEW: { resource: 'audit', action: 'view' },
 } as const;
 
@@ -17,10 +20,30 @@ export type PermissionKey = `${string}:${string}`;
  * available yet. DB RLS/RPC is still authoritative for data access.
  */
 export const LEGACY_ROLE_PERMISSIONS: Partial<Record<AppRole, readonly PermissionKey[]>> = {
-  super_admin: ['users:manage', 'settings:manage', 'transport:view', 'transport:manage', 'transport:live_track', 'transport.parent:view', 'audit:view'],
-  kurum_yoneticisi: ['users:manage', 'settings:manage', 'transport:view', 'transport:manage', 'transport:live_track', 'audit:view'],
-  okul_yoneticisi: ['users:manage', 'settings:manage', 'transport:view', 'transport:manage', 'transport:live_track', 'audit:view'],
-  mudur_yardimcisi: ['transport:view', 'transport:manage', 'transport:live_track'],
+  super_admin: [
+    'users:manage', 'settings:manage',
+    'transport:view', 'transport:manage', 'transport:live_track', 'transport.parent:view',
+    'security:operate', 'security:manage', 'security.student_duty:view',
+    'audit:view',
+  ],
+  kurum_yoneticisi: [
+    'users:manage', 'settings:manage',
+    'transport:view', 'transport:manage', 'transport:live_track',
+    'security:operate', 'security:manage', 'security.student_duty:view',
+    'audit:view',
+  ],
+  okul_yoneticisi: [
+    'users:manage', 'settings:manage',
+    'transport:view', 'transport:manage', 'transport:live_track',
+    'security:operate', 'security:manage', 'security.student_duty:view',
+    'audit:view',
+  ],
+  mudur_yardimcisi: [
+    'transport:view', 'transport:manage', 'transport:live_track',
+    'security:operate', 'security:manage', 'security.student_duty:view',
+  ],
+  ogretmen: ['security.student_duty:view'],
+  personel: ['security:operate'],
   veli: ['transport.parent:view'],
 };
 
