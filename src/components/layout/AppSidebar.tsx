@@ -57,6 +57,7 @@ const mainItems: NavItem[] = [
 
 const adminItems: NavItem[] = [
   { title: 'Kullanıcı & Yetki', url: '/admin/access', icon: Users, permission: PERMISSIONS.ACCESS_MANAGE },
+  { title: 'Özel Yetkiler', url: '/admin/access/permissions', icon: ShieldCheck, permission: PERMISSIONS.ACCESS_MANAGE },
 ];
 
 const settingsItems: NavItem[] = [
