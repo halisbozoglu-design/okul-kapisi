@@ -82,14 +82,14 @@ const App = () => (
             <Route path="/settings/classrooms" element={<ProtectedRoute requiredPermission={PERMISSIONS.SETTINGS_MANAGE}><ClassroomsPage /></ProtectedRoute>} />
             <Route path="/settings/branches" element={<ProtectedRoute requiredPermission={PERMISSIONS.SETTINGS_MANAGE}><BranchesPage /></ProtectedRoute>} />
 
-            {/* Transport module: route UX follows DB-backed module permissions. */}
+            {/* Transport module: each admin surface has its own tenant permission. */}
             <Route path="/transport" element={<ProtectedRoute requiredPermission={PERMISSIONS.TRANSPORT_VIEW}><TransportDashboardPage /></ProtectedRoute>} />
-            <Route path="/transport/vehicles" element={<ProtectedRoute requiredPermission={PERMISSIONS.TRANSPORT_MANAGE}><VehiclesPage /></ProtectedRoute>} />
-            <Route path="/transport/staff" element={<ProtectedRoute requiredPermission={PERMISSIONS.TRANSPORT_MANAGE}><TransportStaffPage /></ProtectedRoute>} />
-            <Route path="/transport/routes" element={<ProtectedRoute requiredPermission={PERMISSIONS.TRANSPORT_MANAGE}><RoutesPage /></ProtectedRoute>} />
-            <Route path="/transport/students" element={<ProtectedRoute requiredPermission={PERMISSIONS.TRANSPORT_MANAGE}><StudentAssignmentsPage /></ProtectedRoute>} />
+            <Route path="/transport/vehicles" element={<ProtectedRoute requiredPermission={PERMISSIONS.TRANSPORT_VEHICLE_MANAGE}><VehiclesPage /></ProtectedRoute>} />
+            <Route path="/transport/staff" element={<ProtectedRoute requiredPermission={PERMISSIONS.TRANSPORT_STAFF_MANAGE}><TransportStaffPage /></ProtectedRoute>} />
+            <Route path="/transport/routes" element={<ProtectedRoute requiredPermission={PERMISSIONS.TRANSPORT_ROUTE_MANAGE}><RoutesPage /></ProtectedRoute>} />
+            <Route path="/transport/students" element={<ProtectedRoute requiredPermission={PERMISSIONS.TRANSPORT_ASSIGNMENT_MANAGE}><StudentAssignmentsPage /></ProtectedRoute>} />
             <Route path="/transport/live" element={<ProtectedRoute requiredPermission={PERMISSIONS.TRANSPORT_LIVE_TRACK}><LiveTrackingPage /></ProtectedRoute>} />
-            <Route path="/transport/trips" element={<ProtectedRoute requiredPermission={PERMISSIONS.TRANSPORT_MANAGE}><TripsPage /></ProtectedRoute>} />
+            <Route path="/transport/trips" element={<ProtectedRoute requiredPermission={PERMISSIONS.TRANSPORT_TRIP_MANAGE}><TripsPage /></ProtectedRoute>} />
             {/* Driver route is permission-gated in UX; transport_staff / trip RLS remains authoritative in DB. */}
             <Route path="/transport/driver" element={<ProtectedRoute requiredPermission={PERMISSIONS.TRANSPORT_DRIVER_OPERATE}><DriverPage /></ProtectedRoute>} />
             <Route path="/transport/parent" element={<ProtectedRoute requiredPermission={PERMISSIONS.TRANSPORT_PARENT_VIEW}><ParentPage /></ProtectedRoute>} />
