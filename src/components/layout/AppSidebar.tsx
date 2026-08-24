@@ -93,15 +93,12 @@ const transportItems: NavItem[] = [
   },
 ];
 
-const SECURITY_MANAGERS: AppRole[] = ['super_admin', 'kurum_yoneticisi', 'okul_yoneticisi', 'mudur_yardimcisi'];
-const SECURITY_OPERATORS: AppRole[] = [...SECURITY_MANAGERS, 'personel'];
-
 const securityItems: NavItem[] = [
-  { title: 'Hızlı Ziyaretçi Girişi', url: '/security/visitors/check-in', icon: ScanFace, roles: SECURITY_OPERATORS },
-  { title: 'İçeridekiler', url: '/security/visitors/inside', icon: Users, roles: SECURITY_OPERATORS },
-  { title: 'Ziyaretçi Defteri', url: '/security/visitors/ledger', icon: ClipboardList, roles: SECURITY_OPERATORS },
-  { title: 'Giriş / Nöbet Yerleri', url: '/security/locations', icon: DoorOpen, roles: SECURITY_MANAGERS },
-  { title: 'Nöbetçi Öğrenci', url: '/security/student-duty', icon: ShieldCheck, roles: [...SECURITY_MANAGERS, 'ogretmen'] },
+  { title: 'Hızlı Ziyaretçi Girişi', url: '/security/visitors/check-in', icon: ScanFace, permission: PERMISSIONS.SECURITY_OPERATE },
+  { title: 'İçeridekiler', url: '/security/visitors/inside', icon: Users, permission: PERMISSIONS.SECURITY_OPERATE },
+  { title: 'Ziyaretçi Defteri', url: '/security/visitors/ledger', icon: ClipboardList, permission: PERMISSIONS.SECURITY_OPERATE },
+  { title: 'Giriş / Nöbet Yerleri', url: '/security/locations', icon: DoorOpen, permission: PERMISSIONS.SECURITY_MANAGE },
+  { title: 'Nöbetçi Öğrenci', url: '/security/student-duty', icon: ShieldCheck, permission: PERMISSIONS.SECURITY_STUDENT_DUTY_VIEW },
 ];
 
 function NavGroup({ label, items, collapsed }: { label: string; items: NavItem[]; collapsed: boolean }) {
