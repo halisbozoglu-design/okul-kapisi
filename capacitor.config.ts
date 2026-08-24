@@ -5,6 +5,9 @@ const config: CapacitorConfig = {
   appName: 'MİMAROS',
   webDir: 'dist',
   bundledWebRuntime: false,
+  android: {
+    useLegacyBridge: true,
+  },
   server: {
     androidScheme: 'https',
   },
