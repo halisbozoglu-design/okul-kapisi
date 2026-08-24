@@ -26,6 +26,7 @@ import SectionsPage from "./pages/settings/SectionsPage";
 import ClassroomsPage from "./pages/settings/ClassroomsPage";
 import BranchesPage from "./pages/settings/BranchesPage";
 import AccessManagementPage from "./pages/admin/AccessManagementPage";
+import PermissionOverridesPage from "./pages/admin/PermissionOverridesPage";
 import NotFound from "./pages/NotFound";
 
 import TransportDashboardPage from "./pages/transport/TransportDashboardPage";
@@ -72,6 +73,7 @@ const App = () => (
 
             {/* Tenant access administration. */}
             <Route path="/admin/access" element={<ProtectedRoute requiredPermission={PERMISSIONS.ACCESS_MANAGE}><AccessManagementPage /></ProtectedRoute>} />
+            <Route path="/admin/access/permissions" element={<ProtectedRoute requiredPermission={PERMISSIONS.ACCESS_MANAGE}><PermissionOverridesPage /></ProtectedRoute>} />
 
             {/* Institution/access administration is distinct from operational module management. */}
             <Route path="/settings/institutions" element={<ProtectedRoute requiredPermission={PERMISSIONS.ACCESS_MANAGE}><InstitutionsPage /></ProtectedRoute>} />
