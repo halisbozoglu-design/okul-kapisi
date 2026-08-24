@@ -79,18 +79,8 @@ const transportItems: NavItem[] = [
   { title: 'Öğrenci Atama', url: '/transport/students', icon: UserSquare2, permission: PERMISSIONS.TRANSPORT_MANAGE },
   { title: 'Canlı Takip', url: '/transport/live', icon: Radio, permission: PERMISSIONS.TRANSPORT_LIVE_TRACK },
   { title: 'Seferler', url: '/transport/trips', icon: History, permission: PERMISSIONS.TRANSPORT_MANAGE },
-  {
-    title: 'Şoför Ekranı',
-    url: '/transport/driver',
-    icon: Smartphone,
-    roles: ['super_admin', 'kurum_yoneticisi', 'okul_yoneticisi', 'mudur_yardimcisi', 'personel'],
-  },
-  {
-    title: 'Veli Servis Takibi',
-    url: '/transport/parent',
-    icon: UserSquare2,
-    permission: PERMISSIONS.TRANSPORT_PARENT_VIEW,
-  },
+  { title: 'Şoför Ekranı', url: '/transport/driver', icon: Smartphone, permission: PERMISSIONS.TRANSPORT_DRIVER_OPERATE },
+  { title: 'Veli Servis Takibi', url: '/transport/parent', icon: UserSquare2, permission: PERMISSIONS.TRANSPORT_PARENT_VIEW },
 ];
 
 const securityItems: NavItem[] = [
