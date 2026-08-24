@@ -31,15 +31,22 @@ Kaynak kontrol tarihi: **24.08.2026**
    İşletme sözleşmesi imzalandığında kayıt tamamlanır ve sigortalı işe giriş bildirgesi düzenlenir.  
    Önerilen sistem etkisi: `L3 / COMPLETE_REGISTRATION_THEN_TRIGGER_SGK_ENTRY`.
 
-7. **18+ uygun adaylarda yıl boyu kayıt — Md.22/9**  
-   3308 sayılı Kanun Md.10/2 kapsamındaki 18 yaşından büyük ve henüz işletmeyle sözleşme imzalamamış kişilerin kayıtları yıl boyunca devam eder.
+7. **18+ adaylarda sözleşmeye bağlı yıl boyu kayıt — Md.22/9**  
+   3308 sayılı Kanunun 10 uncu maddesinin ikinci fıkrası kapsamında **bir işletme ile sözleşme imzalayan** 18 yaşından büyüklerin kayıtları yıl boyunca devam eder. Sözleşmesiz aday için bu fıkradan yıl boyu kayıt hakkı türetilmez.
 
-8. **Birinci dönem sonuna kadar 18+ kayıt — Md.22/9**  
-   Birinci dönem sonuna kadar kayıt olan 18+ öğrencilerin 9. sınıf teorik eğitimleri yoğunlaştırılarak tamamlanır.
+8. **Birinci dönem sonuna kadar 18+ sözleşmeli kayıt — Md.22/9**  
+   Bu kapsamda birinci dönem sonuna kadar kayıt yaptıranların 9. sınıf teorik eğitimleri yoğunlaştırılarak tamamlanır.
 
 9. **Şubat sonrası ikinci dönem kaydı — Md.22/9**  
-   İkinci dönemde şubat ayından sonra kayıt olan öğrenci işletmede mesleki eğitime devam eder; ilgili ders yılı için yılsonu puanı verilmez ve teorik eğitim yeni ders yılı başında başlar.  
+   Bu kapsamda ikinci dönemde şubat ayından sonra kayıt olan öğrenci işletmede mesleki eğitime devam eder; ilgili ders yılı için yılsonu puanı verilmez ve teorik eğitim yeni ders yılı başında başlar.  
    Önerilen sistem etkisi: `L3 / NO_YEAR_END_GRADE_AFTER_POST_FEB_REGISTRATION`.
+
+## Kaynak sürümü / yorum güvenliği
+
+- Md.22/2 ile Md.22/9 ayrı kayıt rejimleridir ve tek kurala birleştirilmemelidir.
+- Md.22/2: MESEM'e yerleştirilmiş öğrencinin iki ay içinde işletme sözleşmesi yapması; aksi hâlde kayıt hakkının kaybı ve teorik eğitime en fazla iki ay devam.
+- Md.22/9: 3308 sayılı Kanun Md.10/2 kapsamında **işletme sözleşmesi imzalamış 18+ adayın** yıl boyu kaydı.
+- Mevzuat motorunda `contract_required=true` ve `adult_year_round_registration=true` birlikte değerlendirilmelidir; yalnız yaş koşulu yıl boyu kayıt için yeterli değildir.
 
 ## Önerilen kural motoru alanları
 
