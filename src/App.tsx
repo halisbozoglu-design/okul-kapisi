@@ -14,6 +14,7 @@ import ResetPasswordPage from "./pages/auth/ResetPasswordPage";
 import InactivePage from "./pages/auth/InactivePage";
 import NoRolePage from "./pages/auth/NoRolePage";
 import UnauthorizedPage from "./pages/auth/UnauthorizedPage";
+import InviteAcceptPage from "./pages/auth/InviteAcceptPage";
 
 import DashboardPage from "./pages/DashboardPage";
 import InstitutionsPage from "./pages/settings/InstitutionsPage";
@@ -24,6 +25,7 @@ import GradeLevelsPage from "./pages/settings/GradeLevelsPage";
 import SectionsPage from "./pages/settings/SectionsPage";
 import ClassroomsPage from "./pages/settings/ClassroomsPage";
 import BranchesPage from "./pages/settings/BranchesPage";
+import AccessManagementPage from "./pages/admin/AccessManagementPage";
 import NotFound from "./pages/NotFound";
 
 import TransportDashboardPage from "./pages/transport/TransportDashboardPage";
@@ -55,17 +57,21 @@ const App = () => (
       <BrowserRouter>
         <AuthProvider>
           <Routes>
-            {/* Public routes */}
+            {/* Public/auth routes */}
             <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
+            <Route path="/invite/accept" element={<InviteAcceptPage />} />
             <Route path="/inactive" element={<InactivePage />} />
             <Route path="/no-role" element={<NoRolePage />} />
             <Route path="/unauthorized" element={<UnauthorizedPage />} />
 
             <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+
+            {/* Tenant access administration. */}
+            <Route path="/admin/access" element={<ProtectedRoute requiredPermission={PERMISSIONS.ACCESS_MANAGE}><AccessManagementPage /></ProtectedRoute>} />
 
             {/* Institution/access administration is distinct from operational module management. */}
             <Route path="/settings/institutions" element={<ProtectedRoute requiredPermission={PERMISSIONS.ACCESS_MANAGE}><InstitutionsPage /></ProtectedRoute>} />
