@@ -15,7 +15,11 @@ AS $$
   SELECT _actor_id = auth.uid()
     AND _target_user_id IS NOT NULL
     AND _target_user_id <> _actor_id
-    AND NOT public.has_role(_target_user_id, 'super_admin'::public.app_role)
+    AND NOT EXISTS (
+      SELECT 1 FROM public.user_roles global_target
+      WHERE global_target.user_id = _target_user_id
+        AND global_target.role = 'super_admin'::public.app_role
+    )
     AND (
       public.has_role(_actor_id, 'super_admin'::public.app_role)
       OR (
