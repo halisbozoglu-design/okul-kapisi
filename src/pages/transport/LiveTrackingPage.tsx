@@ -12,6 +12,7 @@ import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 import { AlertTriangle, Clock, MapPinOff, PauseCircle, Route as RouteIcon, Users } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { db } from '@/lib/db';
+import { useInstitution } from '@/hooks/useInstitution';
 import { Route as RouteType, TransportTrip, Vehicle, DIRECTION_LABELS } from '@/types/transport';
 import {
   computeTripAlerts,
@@ -57,6 +58,7 @@ function FitBounds({ points }: { points: [number, number][] }) {
 }
 
 export default function LiveTrackingPage() {
+  const { institutionId, loading: institutionLoading } = useInstitution();
   const [trips, setTrips] = useState<TransportTrip[]>([]);
   const [routes, setRoutes] = useState<RouteType[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -68,21 +70,41 @@ export default function LiveTrackingPage() {
   const [now, setNow] = useState(() => Date.now());
   const tripsRef = useRef<TransportTrip[]>([]);
 
+  const clearTenantState = useCallback(() => {
+    tripsRef.current = [];
+    setTrips([]);
+    setRoutes([]);
+    setVehicles([]);
+    setSelected(null);
+    setTrail([]);
+    setSamples({});
+    setStopsByRoute({});
+    setEventsByTrip({});
+  }, []);
+
   const loadTrips = useCallback(async () => {
+    if (!institutionId) {
+      tripsRef.current = [];
+      setTrips([]);
+      return [] as TransportTrip[];
+    }
     const { data } = await db.from('transport_trips').select('*')
+      .eq('institution_id', institutionId)
       .eq('status', 'active').is('deleted_at', null).order('started_at', { ascending: false });
     const rows = (data || []) as TransportTrip[];
     tripsRef.current = rows;
     setTrips(rows);
     return rows;
-  }, []);
+  }, [institutionId]);
 
   /** One batched query for the recent ping samples of every active trip (no N+1). */
   const loadSamples = useCallback(async (rows: TransportTrip[]) => {
+    if (!institutionId) { setSamples({}); return; }
     const ids = rows.map(t => t.id);
     if (!ids.length) { setSamples({}); return; }
     const { data } = await db.from('location_pings')
       .select('trip_id,lat,lng,recorded_at')
+      .eq('institution_id', institutionId)
       .in('trip_id', ids)
       .gte('recorded_at', new Date(Date.now() - 30 * 60 * 1000).toISOString())
       .order('recorded_at', { ascending: false })
@@ -93,14 +115,16 @@ export default function LiveTrackingPage() {
       if (list.length < 50) list.push({ lat: p.lat, lng: p.lng, recorded_at: p.recorded_at });
     });
     setSamples(grouped);
-  }, []);
+  }, [institutionId]);
 
   /** Batched roll-call events for every active trip — no student personal data. */
   const loadEvents = useCallback(async (rows: TransportTrip[]) => {
+    if (!institutionId) { setEventsByTrip({}); return; }
     const ids = rows.map(t => t.id);
     if (!ids.length) { setEventsByTrip({}); return; }
     const { data } = await db.from('transport_events')
       .select('trip_id, student_id, event_type, occurred_at, created_at')
+      .eq('institution_id', institutionId)
       .in('trip_id', ids)
       .in('event_type', ['BOARDING', 'NO_SHOW', 'DISEMBARK'])
       .order('occurred_at', { ascending: true });
@@ -109,13 +133,15 @@ export default function LiveTrackingPage() {
       (grouped[e.trip_id] ||= []).push(e);
     });
     setEventsByTrip(grouped);
-  }, []);
+  }, [institutionId]);
 
   const loadStops = useCallback(async (rows: TransportTrip[]) => {
+    if (!institutionId) { setStopsByRoute({}); return; }
     const routeIds = Array.from(new Set(rows.map(t => t.route_id)));
     if (!routeIds.length) { setStopsByRoute({}); return; }
     const { data } = await db.from('route_stops')
       .select('route_id,name,lat,lng,order_index,planned_to_school,planned_to_home')
+      .eq('institution_id', institutionId)
       .in('route_id', routeIds)
       .is('deleted_at', null)
       .not('lat', 'is', null)
@@ -128,47 +154,74 @@ export default function LiveTrackingPage() {
       });
     });
     setStopsByRoute(grouped);
-  }, []);
+  }, [institutionId]);
 
   const refreshAll = useCallback(async () => {
+    if (!institutionId) {
+      clearTenantState();
+      return;
+    }
     const rows = await loadTrips();
     await Promise.all([loadSamples(rows), loadStops(rows), loadEvents(rows)]);
     setNow(Date.now());
-  }, [loadTrips, loadSamples, loadStops, loadEvents]);
+  }, [institutionId, clearTenantState, loadTrips, loadSamples, loadStops, loadEvents]);
 
   useEffect(() => {
+    if (institutionLoading) return;
+    if (!institutionId) {
+      clearTenantState();
+      return;
+    }
+
+    let cancelled = false;
     const init = async () => {
       const [{ data: r }, { data: v }] = await Promise.all([
-        db.from('routes').select('*').is('deleted_at', null),
-        db.from('vehicles').select('*').is('deleted_at', null),
+        db.from('routes').select('*')
+          .eq('institution_id', institutionId).is('deleted_at', null),
+        db.from('vehicles').select('*')
+          .eq('institution_id', institutionId).is('deleted_at', null),
       ]);
+      if (cancelled) return;
       setRoutes((r || []) as RouteType[]);
       setVehicles((v || []) as Vehicle[]);
       await refreshAll();
     };
-    init();
+    void init();
 
+    const tenantFilter = `institution_id=eq.${institutionId}`;
     const channel = supabase
-      .channel('transport-live')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'transport_trips' }, () => refreshAll())
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'location_pings' }, () => loadTrips())
+      .channel(`transport-live:${institutionId}`)
+      .on('postgres_changes', {
+        event: '*', schema: 'public', table: 'transport_trips', filter: tenantFilter,
+      }, () => { void refreshAll(); })
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'location_pings', filter: tenantFilter,
+      }, () => { void refreshAll(); })
       .subscribe();
 
-    const timer = setInterval(() => { refreshAll(); }, 15000);
-    return () => { supabase.removeChannel(channel); clearInterval(timer); };
-  }, [refreshAll, loadTrips]);
+    const timer = window.setInterval(() => { void refreshAll(); }, 15000);
+    return () => {
+      cancelled = true;
+      void supabase.removeChannel(channel);
+      window.clearInterval(timer);
+    };
+  }, [institutionId, institutionLoading, clearTenantState, refreshAll]);
 
   useEffect(() => {
-    if (!selected) { setTrail([]); return; }
+    if (!institutionId || !selected || !trips.some(t => t.id === selected)) {
+      setTrail([]);
+      return;
+    }
     const load = async () => {
       const { data } = await db.from('location_pings').select('lat,lng,recorded_at')
+        .eq('institution_id', institutionId)
         .eq('trip_id', selected).order('recorded_at', { ascending: false }).limit(200);
       setTrail(((data || []) as Ping[]).slice().reverse());
     };
-    load();
-    const t = setInterval(load, 10000);
-    return () => clearInterval(t);
-  }, [selected, trips]);
+    void load();
+    const t = window.setInterval(() => { void load(); }, 10000);
+    return () => window.clearInterval(t);
+  }, [institutionId, selected, trips]);
 
   const routeName = (id: string) => routes.find(r => r.id === id)?.name ?? 'Hat';
   const vehicleLabel = (id: string | null) => {
