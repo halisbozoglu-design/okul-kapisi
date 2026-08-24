@@ -56,14 +56,14 @@ ON public.transport_trips
 FOR INSERT
 TO authenticated
 WITH CHECK (
-  public.is_transport_staff_of_route((SELECT auth.uid()), route_id)
-  AND driver_staff_id IS NOT DISTINCT FROM
-      public.my_transport_staff_id((SELECT auth.uid()), institution_id)
+  public.is_transport_staff_of_route((SELECT auth.uid()), transport_trips.route_id)
+  AND transport_trips.driver_staff_id IS NOT DISTINCT FROM
+      public.my_transport_staff_id((SELECT auth.uid()), transport_trips.institution_id)
   AND EXISTS (
     SELECT 1
     FROM public.routes r
-    WHERE r.id = route_id
-      AND r.institution_id = institution_id
+    WHERE r.id = transport_trips.route_id
+      AND r.institution_id = transport_trips.institution_id
       AND r.deleted_at IS NULL
       AND r.is_active
   )
