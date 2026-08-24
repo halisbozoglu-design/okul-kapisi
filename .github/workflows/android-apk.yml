@@ -1,4 +1,4 @@
-name: Android APK
+name: Android APK + AAB
 
 on:
   workflow_dispatch:
@@ -8,11 +8,12 @@ on:
       - 'src/**'
       - 'public/**'
       - 'package.json'
+      - 'package-lock.json'
       - 'capacitor.config.ts'
       - '.github/workflows/android-apk.yml'
 
 jobs:
-  build-apk:
+  build-android:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -28,27 +29,34 @@ jobs:
           java-version: '21'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Build web bundle
         run: npm run build:web
 
-      - name: Create Android project
+      - name: Create and sync Android project
         run: |
           if [ ! -d android ]; then
             npx cap add android
           fi
           npx cap sync android
 
-      - name: Build debug APK
+      - name: Build installable APK and test AAB
         run: |
           chmod +x android/gradlew
           cd android
-          ./gradlew assembleDebug
+          ./gradlew assembleDebug bundleDebug
 
-      - name: Upload installable APK
+      - name: Upload Android APK
         uses: actions/upload-artifact@v4
         with:
-          name: mimaros-android-debug-apk
+          name: mimaros-android-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+      - name: Upload Android AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: mimaros-android-aab
+          path: android/app/build/outputs/bundle/debug/app-debug.aab
           if-no-files-found: error
