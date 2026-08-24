@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useMemo, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,28 +8,39 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { School } from 'lucide-react';
 import { toast } from 'sonner';
 
+function safeReturnPath(value: string | null) {
+  if (!value || !value.startsWith('/') || value.startsWith('//')) return '/dashboard';
+  return value;
+}
+
 export default function RegisterPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [params] = useSearchParams();
+  const navigate = useNavigate();
+  const next = useMemo(() => safeReturnPath(params.get('next')), [params]);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        emailRedirectTo: window.location.origin,
+        emailRedirectTo: `${window.location.origin}${next}`,
         data: { first_name: firstName, last_name: lastName },
       },
     });
     if (error) {
       toast.error(error.message);
+    } else if (data.session) {
+      toast.success('Kayıt başarılı.');
+      navigate(next, { replace: true });
     } else {
-      toast.success('Kayıt başarılı! Lütfen e-posta adresinizi doğrulayın.');
+      toast.success('Kayıt başarılı! E-postanızı doğruladıktan sonra davet bağlantısına geri yönlendirileceksiniz.');
     }
     setLoading(false);
   };
@@ -43,8 +54,8 @@ export default function RegisterPage() {
               <School className="h-8 w-8 text-primary-foreground" />
             </div>
           </div>
-          <CardTitle className="text-2xl">Kayıt Ol</CardTitle>
-          <CardDescription>Yeni hesap oluşturun</CardDescription>
+          <CardTitle className="text-2xl">MİMAROS'a Kayıt Ol</CardTitle>
+          <CardDescription>Yeni kullanıcı hesabı oluşturun</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleRegister} className="space-y-4">
@@ -66,12 +77,10 @@ export default function RegisterPage() {
               <Label htmlFor="password">Şifre</Label>
               <Input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} minLength={6} required />
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Kayıt yapılıyor...' : 'Kayıt Ol'}
-            </Button>
+            <Button type="submit" className="w-full" disabled={loading}>{loading ? 'Kayıt yapılıyor...' : 'Kayıt Ol'}</Button>
             <p className="text-center text-sm text-muted-foreground">
               Hesabınız var mı?{' '}
-              <Link to="/login" className="text-primary hover:underline">Giriş Yap</Link>
+              <Link to={`/login?next=${encodeURIComponent(next)}`} className="text-primary hover:underline">Giriş Yap</Link>
             </p>
           </form>
         </CardContent>
